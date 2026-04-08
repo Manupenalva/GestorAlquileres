@@ -10,30 +10,6 @@ El proyecto queda dividido en dos servicios:
 
 Ambos servicios se orquestan con `docker-compose` en una red interna compartida.
 
-### Estructura agregada
-
-```text
-backend/
-	Dockerfile
-	.dockerignore
-	pom.xml
-	src/main/java/com/gestion/tpbackend/
-		TpBackendApplication.java
-		config/
-			WebConfig.java
-		controller/
-			HealthController.java
-	src/main/resources/
-		application.properties
-
-frontend/
-	Dockerfile
-	.dockerignore
-	nginx.conf
-
-docker-compose.yml
-```
-
 ### Cómo levantar todo
 
 1. Desde la raíz del proyecto ejecutar:
