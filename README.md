@@ -7,6 +7,8 @@ El proyecto queda dividido en dos servicios:
 
 - `frontend`: aplicación React/Vite servida por Nginx.
 - `backend`: API REST en Java 21 + Spring Boot.
+- `db`: PostgreSQL 16 con volumen persistente (datos en .env).
+- `adminer`: cliente web para gestionar la base de datos.
 
 Ambos servicios se orquestan con `docker-compose` en una red interna compartida.
 
