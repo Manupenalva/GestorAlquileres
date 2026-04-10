@@ -1,11 +1,25 @@
 import { Outlet } from "react-router";
 import { AddBuildingForm } from "./components/AddBuildingForm";
-import { Building2 } from "lucide-react";
-import { Link, useLocation } from "react-router";
+import { Building2, LogOut } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router";
+import { Button } from "./components/ui/button";
 
 export function Root({ buildings, onAddBuilding }: any) {
   const location = useLocation();
+  const navigate = useNavigate();
   const isHome = location.pathname === '/';
+  const authToken = localStorage.getItem('auth_token');
+  const rawExpiresAt = localStorage.getItem('auth_expires_at');
+  const expiresAt = rawExpiresAt ? Number(rawExpiresAt) : null;
+  const isTokenVigente = expiresAt === null || Number.isNaN(expiresAt) || expiresAt > Date.now();
+  const isLoggedIn = Boolean(authToken) && isTokenVigente;
+
+  const handleLogout = () => {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_expires_at');
+    localStorage.removeItem('auth_user');
+    navigate('/login');
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -15,7 +29,25 @@ export function Root({ buildings, onAddBuilding }: any) {
             <Building2 className="size-6" />
             <span>Gestor de Propiedades</span>
           </Link>
-          {isHome && <AddBuildingForm onAdd={onAddBuilding} />}
+          <div className="flex items-center gap-2">
+            {!isLoggedIn && (
+              <>
+                <Button asChild variant="ghost" size="sm">
+                  <Link to="/login">Login</Link>
+                </Button>
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/signup">Sign up</Link>
+                </Button>
+              </>
+            )}
+            {isLoggedIn && (
+              <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2">
+                <LogOut className="size-4" />
+                Cerrar sesion
+              </Button>
+            )}
+            {isHome && <AddBuildingForm onAdd={onAddBuilding} />}
+          </div>
         </div>
       </header>
       <main>

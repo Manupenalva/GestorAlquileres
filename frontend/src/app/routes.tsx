@@ -3,6 +3,8 @@ import { Root } from "./Root";
 import { Home } from "./pages/Home";
 import { BuildingDetail } from "./pages/BuildingDetail";
 import { MonthlyReport } from "./pages/MonthlyReport";
+import { Login } from "./pages/Login";
+import { SignUp } from "./pages/SignUp";
 
 export const createRouter = (props: any) => createBrowserRouter([
   {
@@ -20,6 +22,14 @@ export const createRouter = (props: any) => createBrowserRouter([
       { 
         path: "building/:id/report", 
         element: <MonthlyReport {...props} />
+      },
+      {
+        path: "login",
+        element: <Login />
+      },
+      {
+        path: "signup",
+        element: <SignUp />
       },
     ],
   },
