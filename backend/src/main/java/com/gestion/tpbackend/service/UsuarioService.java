@@ -4,6 +4,7 @@ import com.gestion.tpbackend.entity.Usuario;
 import com.gestion.tpbackend.repository.UsuarioRepository;
 import java.util.List;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -11,9 +12,11 @@ import org.springframework.web.server.ResponseStatusException;
 public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public UsuarioService(UsuarioRepository usuarioRepository) {
+    public UsuarioService(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder) {
         this.usuarioRepository = usuarioRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public List<Usuario> obtenerTodos() {
@@ -26,6 +29,7 @@ public class UsuarioService {
     }
 
     public Usuario crear(Usuario usuario) {
+        usuario.setContrasena(passwordEncoder.encode(usuario.getContrasena()));
         return usuarioRepository.save(usuario);
     }
 
@@ -34,7 +38,11 @@ public class UsuarioService {
         usuario.setNombre(datos.getNombre());
         usuario.setEmail(datos.getEmail());
         usuario.setRol(datos.getRol());
-        usuario.setContrasena(datos.getContrasena());
+
+        if (datos.getContrasena() != null && !datos.getContrasena().isBlank()) {
+            usuario.setContrasena(passwordEncoder.encode(datos.getContrasena()));
+        }
+
         return usuarioRepository.save(usuario);
     }
 
