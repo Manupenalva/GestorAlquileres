@@ -24,7 +24,7 @@ function getAuthUser(): UserSummary | null {
 export default function App() {
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [buildingsLoading, setBuildingsLoading] = useState(false);
-  const [tenants, setTenants] = useLocalStorage<Tenant[]>('tenants', []);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
   const [expenses, setExpenses] = useLocalStorage<Expense[]>('expenses', []);
   const [payments, setPayments] = useLocalStorage<Payment[]>('payments', []);
 
@@ -42,8 +42,37 @@ export default function App() {
 
       const data = await response.json();
       setBuildings(Array.isArray(data) ? data : []);
+      
+      loadAllTenants();
     } finally {
       setBuildingsLoading(false);
+    }
+  };
+
+  const loadAllTenants = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/unidades`);
+      if (response.ok) {
+        const units = await response.json();
+        const allTenants: Tenant[] = units
+          .filter((unit: any) => unit.inquilino)
+          .map((unit: any) => ({
+            id: String(unit.id),
+            buildingId: unit.edificio ? String(unit.edificio.id) : '',
+            firstName: unit.inquilino.nombre,
+            lastName: '',
+            email: unit.inquilino.email,
+            phone: '',
+            floor: unit.piso || '',
+            apartmentNumber: unit.nombre || '',
+            contractExpirationDate: unit.vencimientoContrato || '',
+            paymentDayOfMonth: unit.diaPago || 10,
+            rentAmount: unit.montoAlquiler || 0,
+          }));
+        setTenants(allTenants);
+      }
+    } catch (error) {
+      console.error('Error loading tenants:', error);
     }
   };
 
@@ -119,12 +148,29 @@ export default function App() {
     });
   };
 
-  const handleAddTenant = (tenantData: Omit<Tenant, 'id'>) => {
-    const newTenant: Tenant = {
-      ...tenantData,
-      id: crypto.randomUUID(),
-    };
-    setTenants([...tenants, newTenant]);
+  const handleAddTenant = async (tenantData: Omit<Tenant, 'id'>) => {
+    const response = await fetch(`${API_BASE}/api/unidades/asignar-por-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        edificioId: Number(tenantData.buildingId),
+        piso: tenantData.floor,
+        nombre: tenantData.apartmentNumber,
+        email: tenantData.email,
+        montoAlquiler: tenantData.rentAmount,
+        diaPago: tenantData.paymentDayOfMonth,
+        vencimientoContrato: tenantData.contractExpirationDate,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'No se pudo agregar el inquilino');
+    }
+
+    await loadBuildings();
   };
 
   const handleAddExpense = (expenseData: Omit<Expense, 'id' | 'date'>) => {

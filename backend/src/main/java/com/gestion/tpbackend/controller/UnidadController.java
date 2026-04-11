@@ -17,6 +17,11 @@ public class UnidadController {
         this.unidadService = unidadService;
     }
 
+    @GetMapping
+    public List<Unidad> listarTodas() {
+        return unidadService.obtenerTodas();
+    }
+
     @GetMapping("/edificio/{edificioId}")
     public List<Unidad> listarPorEdificio(@PathVariable Long edificioId) {
         return unidadService.obtenerPorEdificio(edificioId);
@@ -33,6 +38,19 @@ public class UnidadController {
         return unidadService.asignarInquilino(id, inquilinoId);
     }
 
+    @PostMapping("/asignar-por-email")
+    public Unidad asignarPorEmail(@RequestBody AsignarInquilinoRequest request) {
+        return unidadService.asignarInquilinoPorEmail(
+            request.edificioId(), 
+            request.piso(), 
+            request.nombre(), 
+            request.email(),
+            request.montoAlquiler(),
+            request.diaPago(),
+            request.vencimientoContrato()
+        );
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void eliminar(@PathVariable Long id) {
@@ -40,4 +58,5 @@ public class UnidadController {
     }
 
     public record UnidadRequest(String nombre, Double metrosCuadrados, String piso, Long edificioId) {}
+    public record AsignarInquilinoRequest(Long edificioId, String piso, String nombre, String email, Double montoAlquiler, Integer diaPago, String vencimientoContrato) {}
 }

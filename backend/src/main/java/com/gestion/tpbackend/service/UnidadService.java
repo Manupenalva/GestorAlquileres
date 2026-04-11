@@ -25,6 +25,10 @@ public class UnidadService {
         this.usuarioRepository = usuarioRepository;
     }
 
+    public List<Unidad> obtenerTodas() {
+        return unidadRepository.findAll();
+    }
+
     public List<Unidad> obtenerPorEdificio(Long edificioId) {
         return unidadRepository.findByEdificioId(edificioId);
     }
@@ -47,11 +51,48 @@ public class UnidadService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inquilino no encontrado"));
         
         unidad.setInquilino(inquilino);
-        return unidadRepository.save(unidad);
+        Unidad unidadGuardada = unidadRepository.save(unidad);
+        
+        actualizarCantidadInquilinos(unidad.getEdificio());
+        
+        return unidadGuardada;
+    }
+
+    public Unidad asignarInquilinoPorEmail(Long edificioId, String piso, String nombre, String email, Double montoAlquiler, Integer diaPago, String vencimientoContrato) {
+        Usuario inquilino = usuarioRepository.findByEmail(email)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "El usuario con email " + email + " no existe."));
+            
+        Edificio edificio = edificioRepository.findById(edificioId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Edificio no encontrado"));
+            
+        Unidad unidad = unidadRepository.findByEdificioIdAndPisoAndNombre(edificioId, piso, nombre)
+            .orElseGet(() -> new Unidad(nombre, 0.0, piso, edificio));
+            
+        unidad.setInquilino(inquilino);
+        unidad.setMontoAlquiler(montoAlquiler);
+        unidad.setDiaPago(diaPago);
+        unidad.setVencimientoContrato(vencimientoContrato);
+        
+        Unidad unidadGuardada = unidadRepository.save(unidad);
+        
+        actualizarCantidadInquilinos(edificio);
+        
+        return unidadGuardada;
+    }
+
+    private void actualizarCantidadInquilinos(Edificio edificio) {
+        List<Unidad> unidades = unidadRepository.findByEdificioId(edificio.getId());
+        long count = unidades.stream()
+            .filter(u -> u.getInquilino() != null)
+            .count();
+        edificio.setCantidadInquilinos((int) count);
+        edificioRepository.save(edificio);
     }
 
     public void eliminar(Long id) {
         Unidad unidad = obtenerPorId(id);
+        Edificio edificio = unidad.getEdificio();
         unidadRepository.delete(unidad);
+        actualizarCantidadInquilinos(edificio);
     }
 }

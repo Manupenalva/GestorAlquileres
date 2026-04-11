@@ -26,7 +26,9 @@ export function AddTenantForm({ buildingId, onAdd }: AddTenantFormProps) {
     rentAmount: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.firstName || !formData.lastName || !formData.email || !formData.rentAmount) {
@@ -34,32 +36,39 @@ export function AddTenantForm({ buildingId, onAdd }: AddTenantFormProps) {
       return;
     }
 
-    onAdd({
-      buildingId,
-      firstName: formData.firstName,
-      lastName: formData.lastName,
-      email: formData.email,
-      phone: formData.phone,
-      floor: formData.floor,
-      apartmentNumber: formData.apartmentNumber,
-      contractExpirationDate: formData.contractExpirationDate,
-      paymentDayOfMonth: parseInt(formData.paymentDayOfMonth) || 10,
-      rentAmount: parseFloat(formData.rentAmount),
-    });
+    setLoading(true);
+    try {
+      await onAdd({
+        buildingId,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        floor: formData.floor,
+        apartmentNumber: formData.apartmentNumber,
+        contractExpirationDate: formData.contractExpirationDate,
+        paymentDayOfMonth: parseInt(formData.paymentDayOfMonth) || 10,
+        rentAmount: parseFloat(formData.rentAmount),
+      });
 
-    setFormData({
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
-      floor: '',
-      apartmentNumber: '',
-      contractExpirationDate: '',
-      paymentDayOfMonth: '',
-      rentAmount: '',
-    });
-    setOpen(false);
-    toast.success('Inquilino agregado exitosamente');
+      setFormData({
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        floor: '',
+        apartmentNumber: '',
+        contractExpirationDate: '',
+        paymentDayOfMonth: '',
+        rentAmount: '',
+      });
+      setOpen(false);
+      toast.success('Inquilino agregado exitosamente');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al agregar inquilino');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -178,8 +187,8 @@ export function AddTenantForm({ buildingId, onAdd }: AddTenantFormProps) {
             />
           </div>
           
-          <Button type="submit" className="w-full">
-            Agregar Inquilino
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? 'Agregando...' : 'Agregar Inquilino'}
           </Button>
         </form>
       </DialogContent>

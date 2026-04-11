@@ -30,6 +30,15 @@ public class Unidad {
     @JsonIgnoreProperties({"edificios", "contrasena", "hibernateLazyInitializer", "handler"})
     private Usuario inquilino;
 
+    @Column
+    private Double montoAlquiler;
+
+    @Column
+    private Integer diaPago;
+
+    @Column
+    private String vencimientoContrato;
+
     public Unidad() {
     }
 
@@ -82,5 +91,29 @@ public class Unidad {
     
     public void setInquilino(Usuario inquilino) { 
         this.inquilino = inquilino; 
+    }
+
+    public Double getMontoAlquiler() {
+        return montoAlquiler;
+    }
+
+    public void setMontoAlquiler(Double montoAlquiler) {
+        this.montoAlquiler = montoAlquiler;
+    }
+
+    public Integer getDiaPago() {
+        return diaPago;
+    }
+
+    public void setDiaPago(Integer diaPago) {
+        this.diaPago = diaPago;
+    }
+
+    public String getVencimientoContrato() {
+        return vencimientoContrato;
+    }
+
+    public void setVencimientoContrato(String vencimientoContrato) {
+        this.vencimientoContrato = vencimientoContrato;
     }
 }
