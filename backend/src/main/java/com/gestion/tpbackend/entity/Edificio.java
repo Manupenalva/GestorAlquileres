@@ -10,6 +10,10 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.util.List;
+import java.util.ArrayList;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.CascadeType;
 
 @Entity
 @Table(name = "edificios")
@@ -29,6 +33,10 @@ public class Edificio {
     @JoinColumn(name = "propietario_id", nullable = false)
     @JsonIgnoreProperties({"edificios", "contrasena", "hibernateLazyInitializer", "handler"})
     private Usuario propietario;
+
+    @OneToMany(mappedBy = "edificio", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnoreProperties("edificio")
+    private List<Unidad> unidades = new java.util.ArrayList<>();
 
     public Edificio() {
     }
