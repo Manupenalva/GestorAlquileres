@@ -29,17 +29,20 @@ public class EdificioService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Edificio no encontrado"));
     }
 
-    public Edificio crear(String nombre, String direccion, Long propietarioId) {
+    public Edificio crear(String nombre, String direccion, Integer cantidadDepartamentos, Integer cantidadInquilinos, Double expensasBase, Long propietarioId) {
         Usuario propietario = obtenerPropietario(propietarioId);
-        Edificio edificio = new Edificio(nombre, direccion, propietario);
+        Edificio edificio = new Edificio(nombre, direccion, cantidadDepartamentos, cantidadInquilinos, expensasBase, propietario);
         return edificioRepository.save(edificio);
     }
 
-    public Edificio actualizar(Long id, String nombre, String direccion, Long propietarioId) {
+    public Edificio actualizar(Long id, String nombre, String direccion, Integer cantidadDepartamentos, Integer cantidadInquilinos, Double expensasBase, Long propietarioId) {
         Edificio edificio = obtenerPorId(id);
         Usuario propietario = obtenerPropietario(propietarioId);
         edificio.setNombre(nombre);
         edificio.setDireccion(direccion);
+        edificio.setCantidadDepartamentos(cantidadDepartamentos);
+        edificio.setCantidadInquilinos(cantidadInquilinos);
+        edificio.setExpensasBase(expensasBase);
         edificio.setPropietario(propietario);
         return edificioRepository.save(edificio);
     }

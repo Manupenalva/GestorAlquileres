@@ -37,12 +37,27 @@ public class EdificioController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Edificio crear(@RequestBody EdificioRequest request) {
-        return edificioService.crear(request.nombre(), request.direccion(), request.propietarioId());
+        return edificioService.crear(
+            request.nombre(),
+            request.direccion(),
+            request.cantidadDepartamentos(),
+            request.cantidadInquilinos(),
+            request.expensasBase(),
+            request.propietarioId()
+        );
     }
 
     @PutMapping("/{id}")
     public Edificio actualizar(@PathVariable Long id, @RequestBody EdificioRequest request) {
-        return edificioService.actualizar(id, request.nombre(), request.direccion(), request.propietarioId());
+        return edificioService.actualizar(
+            id,
+            request.nombre(),
+            request.direccion(),
+            request.cantidadDepartamentos(),
+            request.cantidadInquilinos(),
+            request.expensasBase(),
+            request.propietarioId()
+        );
     }
 
     @DeleteMapping("/{id}")
@@ -51,6 +66,6 @@ public class EdificioController {
         edificioService.eliminar(id);
     }
 
-    public record EdificioRequest(String nombre, String direccion, Long propietarioId) {
+    public record EdificioRequest(String nombre, String direccion, Integer cantidadDepartamentos, Integer cantidadInquilinos, Double expensasBase, Long propietarioId) {
     }
 }

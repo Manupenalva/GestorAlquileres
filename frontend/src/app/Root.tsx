@@ -4,7 +4,7 @@ import { Building2, LogOut } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { Button } from "./components/ui/button";
 
-export function Root({ buildings, onAddBuilding }: any) {
+export function Root({ onAddBuilding }: any) {
   const location = useLocation();
   const navigate = useNavigate();
   const isHome = location.pathname === '/';

@@ -8,34 +8,58 @@ import { Building2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface AddBuildingFormProps {
-  onAdd: (building: Omit<Building, 'id' | 'createdAt'>) => void;
+  onAdd: (building: Omit<Building, 'id'>) => Promise<void> | void;
 }
 
 export function AddBuildingForm({ onAdd }: AddBuildingFormProps) {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
-    address: '',
-    apartmentCount: '',
-    baseExpenses: '',
+    nombre: '',
+    direccion: '',
+    cantidadDepartamentos: '',
+    cantidadInquilinos: '',
+    expensasBase: '',
   });
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.address || !formData.apartmentCount || !formData.baseExpenses) {
+
+    if (
+      !formData.nombre.trim() ||
+      !formData.direccion.trim() ||
+      !formData.cantidadDepartamentos.trim() ||
+      !formData.cantidadInquilinos.trim() ||
+      !formData.expensasBase.trim()
+    ) {
       toast.error('Por favor complete todos los campos');
       return;
     }
 
-    onAdd({
-      address: formData.address,
-      apartmentCount: parseInt(formData.apartmentCount),
-      baseExpenses: parseFloat(formData.baseExpenses),
-    });
+    try {
+      setLoading(true);
+      await onAdd({
+        nombre: formData.nombre.trim(),
+        direccion: formData.direccion.trim(),
+        cantidadDepartamentos: Number(formData.cantidadDepartamentos),
+        cantidadInquilinos: Number(formData.cantidadInquilinos),
+        expensasBase: Number(formData.expensasBase),
+      });
 
-    setFormData({ address: '', apartmentCount: '', baseExpenses: '' });
-    setOpen(false);
-    toast.success('Edificio agregado exitosamente');
+      setFormData({
+        nombre: '',
+        direccion: '',
+        cantidadDepartamentos: '',
+        cantidadInquilinos: '',
+        expensasBase: '',
+      });
+      setOpen(false);
+      toast.success('Edificio agregado exitosamente');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo agregar el edificio');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -55,39 +79,61 @@ export function AddBuildingForm({ onAdd }: AddBuildingFormProps) {
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="address">Dirección</Label>
+            <Label htmlFor="nombre">Nombre</Label>
             <Input
-              id="address"
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+              id="nombre"
+              value={formData.nombre}
+              onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+              placeholder="Edificio Central"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="direccion">Dirección</Label>
+            <Input
+              id="direccion"
+              value={formData.direccion}
+              onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
               placeholder="Av. Corrientes 1234"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="apartmentCount">Cantidad de Departamentos</Label>
-            <Input
-              id="apartmentCount"
-              type="number"
-              min="1"
-              value={formData.apartmentCount}
-              onChange={(e) => setFormData({ ...formData, apartmentCount: e.target.value })}
-              placeholder="10"
-            />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="cantidadDepartamentos">Cantidad de departamentos</Label>
+              <Input
+                id="cantidadDepartamentos"
+                type="number"
+                min="0"
+                value={formData.cantidadDepartamentos}
+                onChange={(e) => setFormData({ ...formData, cantidadDepartamentos: e.target.value })}
+                placeholder="12"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cantidadInquilinos">Cantidad de inquilinos</Label>
+              <Input
+                id="cantidadInquilinos"
+                type="number"
+                min="0"
+                value={formData.cantidadInquilinos}
+                onChange={(e) => setFormData({ ...formData, cantidadInquilinos: e.target.value })}
+                placeholder="8"
+              />
+            </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="baseExpenses">Expensas Base</Label>
+            <Label htmlFor="expensasBase">Expensas base</Label>
             <Input
-              id="baseExpenses"
+              id="expensasBase"
               type="number"
               min="0"
               step="0.01"
-              value={formData.baseExpenses}
-              onChange={(e) => setFormData({ ...formData, baseExpenses: e.target.value })}
+              value={formData.expensasBase}
+              onChange={(e) => setFormData({ ...formData, expensasBase: e.target.value })}
               placeholder="15000"
             />
           </div>
-          <Button type="submit" className="w-full">
-            Agregar Edificio
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? 'Agregando...' : 'Agregar Edificio'}
           </Button>
         </form>
       </DialogContent>
