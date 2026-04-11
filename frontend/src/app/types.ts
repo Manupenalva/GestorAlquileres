@@ -1,9 +1,18 @@
 export interface Building {
-  id: string;
-  address: string;
-  apartmentCount: number;
-  baseExpenses: number;
-  createdAt: string;
+  id: number;
+  nombre: string;
+  direccion: string;
+  propietario?: UserSummary;
+  cantidadDepartamentos: number;
+  cantidadInquilinos: number;
+  expensasBase: number;
+}
+
+export interface UserSummary {
+  id: number;
+  nombre: string;
+  email: string;
+  rol: string;
 }
 
 export interface Tenant {

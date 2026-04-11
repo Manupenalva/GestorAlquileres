@@ -13,7 +13,7 @@ export const createRouter = (props: any) => createBrowserRouter([
     children: [
       { 
         index: true, 
-        element: <Home buildings={props.buildings} />
+        element: <Home buildings={props.buildings} loading={props.buildingsLoading} />
       },
       { 
         path: "building/:id", 

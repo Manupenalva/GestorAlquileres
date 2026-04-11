@@ -6,12 +6,13 @@ import { Badge } from '../components/ui/badge';
 import { AddTenantForm } from '../components/AddTenantForm';
 import { AddExpenseForm } from '../components/AddExpenseForm';
 import { RegisterPaymentDialog } from '../components/RegisterPaymentDialog';
-import { ArrowLeft, Building2, MapPin, Home, DollarSign, BarChart3, User, Phone, Mail, Calendar, CheckCircle2, XCircle } from 'lucide-react';
+import { ArrowLeft, Building2, MapPin, Home, DollarSign, BarChart3, Phone, Mail, Calendar, CheckCircle2, XCircle, Users } from 'lucide-react';
 
 interface BuildingDetailProps {
   buildings: Building[];
   tenants: Tenant[];
   payments: Payment[];
+  buildingsLoading?: boolean;
   onAddTenant: (tenant: Omit<Tenant, 'id'>) => void;
   onAddExpense: (expense: any) => void;
   onRegisterPayment: (payment: Omit<Payment, 'id' | 'date'>) => void;
@@ -21,13 +22,27 @@ export function BuildingDetail({
   buildings, 
   tenants, 
   payments,
+  buildingsLoading,
   onAddTenant,
   onAddExpense,
   onRegisterPayment,
 }: BuildingDetailProps) {
   const { id } = useParams();
-  const building = buildings.find(b => b.id === id);
-  const buildingTenants = tenants.filter(t => t.buildingId === id);
+  const building = buildings.find(b => String(b.id) === id);
+  const buildingId = building ? String(building.id) : id ?? '';
+  const buildingTenants = tenants.filter(t => t.buildingId === buildingId);
+
+  if (!building && buildingsLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Card>
+          <CardContent className="py-16 text-center text-muted-foreground">
+            Cargando edificio...
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (!building) {
     return (
@@ -65,18 +80,18 @@ export function BuildingDetail({
           <div>
             <h1 className="mb-2 flex items-center gap-2">
               <Building2 className="size-8" />
-              Edificio
+              {building.nombre}
             </h1>
             <p className="text-muted-foreground flex items-center gap-2">
               <MapPin className="size-4" />
-              {building.address}
+              {building.direccion}
             </p>
           </div>
           
           <div className="flex gap-2 flex-wrap">
-            <AddTenantForm buildingId={building.id} onAdd={onAddTenant} />
-            <AddExpenseForm buildingId={building.id} onAdd={onAddExpense} />
-            <Link to={`/building/${building.id}/report`}>
+            <AddTenantForm buildingId={buildingId} onAdd={onAddTenant} />
+            <AddExpenseForm buildingId={buildingId} onAdd={onAddExpense} />
+            <Link to={`/building/${buildingId}/report`}>
               <Button variant="default" className="gap-2">
                 <BarChart3 className="size-4" />
                 Reporte Mensual
@@ -95,10 +110,22 @@ export function BuildingDetail({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl">{building.apartmentCount}</div>
+            <div className="text-2xl">{building.cantidadDepartamentos ?? 0}</div>
           </CardContent>
         </Card>
         
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Users className="size-4" />
+              Inquilinos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl">{building.cantidadInquilinos ?? 0}</div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -107,19 +134,9 @@ export function BuildingDetail({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl">${building.baseExpenses.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <User className="size-4" />
-              Inquilinos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl">{buildingTenants.length}</div>
+            <div className="text-2xl">
+              ${(building.expensasBase ?? 0).toLocaleString()}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -198,7 +215,7 @@ export function BuildingDetail({
                           <RegisterPaymentDialog
                             tenantId={tenant.id}
                             tenantName={`${tenant.firstName} ${tenant.lastName}`}
-                            buildingId={building.id}
+                            buildingId={buildingId}
                             rentAmount={tenant.rentAmount}
                             onRegister={onRegisterPayment}
                           />
