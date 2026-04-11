@@ -51,6 +51,12 @@ public class UnidadController {
         );
     }
 
+    @DeleteMapping("/{id}/inquilino")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void quitarInquilino(@PathVariable Long id) {
+        unidadService.quitarInquilino(id);
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void eliminar(@PathVariable Long id) {

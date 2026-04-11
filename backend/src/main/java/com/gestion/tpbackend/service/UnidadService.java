@@ -80,6 +80,18 @@ public class UnidadService {
         return unidadGuardada;
     }
 
+    public void quitarInquilino(Long unidadId) {
+        Unidad unidad = obtenerPorId(unidadId);
+        
+        unidad.setInquilino(null);
+        unidad.setMontoAlquiler(null);
+        unidad.setDiaPago(null);
+        unidad.setVencimientoContrato(null);
+        
+        unidadRepository.save(unidad);
+        actualizarCantidadInquilinos(unidad.getEdificio());
+    }
+
     private void actualizarCantidadInquilinos(Edificio edificio) {
         List<Unidad> unidades = unidadRepository.findByEdificioId(edificio.getId());
         long count = unidades.stream()

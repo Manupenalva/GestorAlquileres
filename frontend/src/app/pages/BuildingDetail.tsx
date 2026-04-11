@@ -27,7 +27,8 @@ interface BuildingDetailProps {
   payments: Payment[];
   buildingsLoading?: boolean;
   onDeleteBuilding: (buildingId: number) => Promise<void>;
-  onAddTenant: (tenant: Omit<Tenant, 'id'>) => void;
+  onAddTenant: (tenant: Omit<Tenant, 'id'>) => Promise<void>;
+  onRemoveTenant: (tenantId: string) => Promise<void>;
   onAddExpense: (expense: any) => void;
   onRegisterPayment: (payment: Omit<Payment, 'id' | 'date'>) => void;
 }
@@ -39,6 +40,7 @@ export function BuildingDetail({
   buildingsLoading,
   onDeleteBuilding,
   onAddTenant,
+  onRemoveTenant,
   onAddExpense,
   onRegisterPayment,
 }: BuildingDetailProps) {
@@ -286,6 +288,38 @@ export function BuildingDetail({
                             rentAmount={tenant.rentAmount}
                             onRegister={onRegisterPayment}
                           />
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10">
+                                <Trash2 className="size-4 mr-2" />
+                                Quitar Inquilino
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Quitar inquilino</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Esta acción eliminará la relación del inquilino {tenant.firstName} con este departamento. El usuario seguirá existiendo en el sistema. ¿Desea continuar?
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={async () => {
+                                    try {
+                                      await onRemoveTenant(tenant.id);
+                                      toast.success('Inquilino quitado correctamente');
+                                    } catch (error) {
+                                      toast.error(error instanceof Error ? error.message : 'No se pudo quitar al inquilino');
+                                    }
+                                  }}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Quitar
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                           {paymentStatus && (
                             <p className="text-xs text-muted-foreground text-center">
                               ${paymentStatus.amount.toLocaleString()}

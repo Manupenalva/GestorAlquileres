@@ -173,6 +173,18 @@ export default function App() {
     await loadBuildings();
   };
 
+  const handleRemoveTenant = async (tenantId: string) => {
+    const response = await fetch(`${API_BASE}/api/unidades/${tenantId}/inquilino`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      throw new Error('No se pudo eliminar el inquilino');
+    }
+
+    await loadBuildings();
+  };
+
   const handleAddExpense = (expenseData: Omit<Expense, 'id' | 'date'>) => {
     const newExpense: Expense = {
       ...expenseData,
@@ -200,6 +212,7 @@ export default function App() {
     onAddBuilding: handleAddBuilding,
     onDeleteBuilding: handleDeleteBuilding,
     onAddTenant: handleAddTenant,
+    onRemoveTenant: handleRemoveTenant,
     onAddExpense: handleAddExpense,
     onRegisterPayment: handleRegisterPayment,
   });
