@@ -1,4 +1,5 @@
-import { useParams, Link } from 'react-router';
+import { useState } from 'react';
+import { useParams, Link, useNavigate } from 'react-router';
 import { Building, Tenant, Payment } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -6,13 +7,26 @@ import { Badge } from '../components/ui/badge';
 import { AddTenantForm } from '../components/AddTenantForm';
 import { AddExpenseForm } from '../components/AddExpenseForm';
 import { RegisterPaymentDialog } from '../components/RegisterPaymentDialog';
-import { ArrowLeft, Building2, MapPin, Home, DollarSign, BarChart3, Phone, Mail, Calendar, CheckCircle2, XCircle, Users } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '../components/ui/alert-dialog';
+import { ArrowLeft, Building2, MapPin, Home, DollarSign, BarChart3, Phone, Mail, Calendar, CheckCircle2, XCircle, Users, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface BuildingDetailProps {
   buildings: Building[];
   tenants: Tenant[];
   payments: Payment[];
   buildingsLoading?: boolean;
+  onDeleteBuilding: (buildingId: number) => Promise<void>;
   onAddTenant: (tenant: Omit<Tenant, 'id'>) => void;
   onAddExpense: (expense: any) => void;
   onRegisterPayment: (payment: Omit<Payment, 'id' | 'date'>) => void;
@@ -23,14 +37,45 @@ export function BuildingDetail({
   tenants, 
   payments,
   buildingsLoading,
+  onDeleteBuilding,
   onAddTenant,
   onAddExpense,
   onRegisterPayment,
 }: BuildingDetailProps) {
+  const navigate = useNavigate();
+  const [deleting, setDeleting] = useState(false);
   const { id } = useParams();
   const building = buildings.find(b => String(b.id) === id);
   const buildingId = building ? String(building.id) : id ?? '';
   const buildingTenants = tenants.filter(t => t.buildingId === buildingId);
+
+  if (!building && deleting) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Card>
+          <CardContent className="py-16 text-center text-muted-foreground">
+            Eliminando edificio...
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const handleDeleteBuilding = async () => {
+    if (!building || deleting) {
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      await onDeleteBuilding(building.id);
+      toast.success('Edificio eliminado correctamente');
+      navigate('/', { replace: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo eliminar el edificio');
+      setDeleting(false);
+    }
+  };
 
   if (!building && buildingsLoading) {
     return (
@@ -97,6 +142,28 @@ export function BuildingDetail({
                 Reporte Mensual
               </Button>
             </Link>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" className="gap-2" disabled={deleting}>
+                  <Trash2 className="size-4" />
+                  Eliminar Edificio
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Eliminar edificio</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta accion eliminara el edificio {building.nombre}. Esta seguro que desea continuar?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteBuilding} disabled={deleting}>
+                    {deleting ? 'Eliminando...' : 'Si, eliminar'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
       </div>

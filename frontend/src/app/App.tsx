@@ -91,6 +91,34 @@ export default function App() {
     await loadBuildings();
   };
 
+  const handleDeleteBuilding = async (buildingId: number) => {
+    const response = await fetch(`${API_BASE}/api/edificios/${buildingId}`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      throw new Error('No se pudo eliminar el edificio');
+    }
+
+    const buildingIdAsString = String(buildingId);
+    setBuildings((currentBuildings: Building[]) =>
+      currentBuildings.filter((building: Building) => building.id !== buildingId),
+    );
+    setTenants((currentTenants: Tenant[]) =>
+      currentTenants.filter((tenant: Tenant) => tenant.buildingId !== buildingIdAsString),
+    );
+    setExpenses((currentExpenses: Expense[]) =>
+      currentExpenses.filter((expense: Expense) => expense.buildingId !== buildingIdAsString),
+    );
+    setPayments((currentPayments: Payment[]) =>
+      currentPayments.filter((payment: Payment) => payment.buildingId !== buildingIdAsString),
+    );
+
+    loadBuildings().catch((error) => {
+      console.error(error);
+    });
+  };
+
   const handleAddTenant = (tenantData: Omit<Tenant, 'id'>) => {
     const newTenant: Tenant = {
       ...tenantData,
@@ -124,6 +152,7 @@ export default function App() {
     expenses,
     payments,
     onAddBuilding: handleAddBuilding,
+    onDeleteBuilding: handleDeleteBuilding,
     onAddTenant: handleAddTenant,
     onAddExpense: handleAddExpense,
     onRegisterPayment: handleRegisterPayment,
