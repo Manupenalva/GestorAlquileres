@@ -60,7 +60,9 @@ public class EdificioService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Propietario no encontrado"));
     }
 
-    public List<Edificio> getEdificiosDelInquilino(Long userId) {
-        return unidadRepository.findEdificiosByInquilinoId(userId);
+    public List<Edificio> getEdificiosDelInquilinoPorEmail(String email) {
+        Usuario inquilino = usuarioRepository.findByEmail(email)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inquilino no encontrado"));
+        return unidadRepository.findEdificiosByInquilinoId(inquilino.getId());
     }
 }

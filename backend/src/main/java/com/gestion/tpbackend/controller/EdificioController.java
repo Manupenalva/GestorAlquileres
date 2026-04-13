@@ -77,8 +77,8 @@ public class EdificioController {
     @PreAuthorize("hasRole('INQ')")
     @GetMapping("/mis-edificios")
     public ResponseEntity<List<Edificio>> getMisEdificios(Authentication auth) {
-        Usuario usuario = (Usuario) auth.getPrincipal();
-        List<Edificio> edificios = edificioService.getEdificiosDelInquilino(usuario.getId());
+        String email = auth.getName(); 
+        List<Edificio> edificios = edificioService.getEdificiosDelInquilinoPorEmail(email);
         return ResponseEntity.ok(edificios);
     }
 }
