@@ -22,7 +22,7 @@ export default function InquilinoEdificios() {
       if (!token) {
         setError("No estás autenticado. Por favor, iniciá sesión.");
         setLoading(false);
-        navigate("/building/1");
+        navigate("/login");
         return;
       }
 
@@ -36,7 +36,7 @@ export default function InquilinoEdificios() {
 
         if (res.status === 401) {
           setError("Tu sesión expiró o el token es inválido.");
-          localStorage.removeItem("token");
+          localStorage.removeItem("auth_token");
           navigate("/login");
           return;
         }
@@ -56,29 +56,42 @@ export default function InquilinoEdificios() {
     };
 
     fetchEdificios();
-  }, []);
+  }, [navigate]);
 
   if (loading) return <p className="p-4">Cargando edificios...</p>;
 
   if (error) return <div className="p-4 text-red-500 font-semibold">{error}</div>;
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Mis Edificios</h1>
+    <div className="p-6 max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6">Mis Alquileres</h1>
 
       {edificios.length === 0 ? (
-        <p>No tenés edificios asignados.</p>
+        <div className="bg-gray-50 border border-dashed rounded-xl p-8 text-center text-gray-500">
+          <p>No tenés departamentos o edificios asignados todavía.</p>
+        </div>
       ) : (
         <div className="grid gap-4">
           {edificios.map((e) => (
             <div
               key={e.id}
-              className="border rounded-xl p-4 shadow hover:shadow-md transition"
+              className="bg-white border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col sm:flex-row sm:items-center justify-between gap-4"
             >
-              <h2 className="text-lg font-semibold">{e.nombre}</h2>
-              {e.direccion && (
-                <p className="text-gray-500">{e.direccion}</p>
-              )}
+              {/* Información del Edificio (Izquierda) */}
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">{e.nombre}</h2>
+                {e.direccion && (
+                  <p className="text-sm text-gray-500 mt-1">{e.direccion}</p>
+                )}
+              </div>
+
+              {/* Botón de Acción (Derecha) */}
+              <button
+                onClick={() => navigate(`/login`)}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2.5 rounded-lg transition-colors whitespace-nowrap"
+              >
+                Pagar Expensas
+              </button>
             </div>
           ))}
         </div>
