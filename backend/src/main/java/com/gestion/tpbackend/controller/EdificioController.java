@@ -13,6 +13,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import com.gestion.tpbackend.entity.Usuario;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.access.prepost.PreAuthorize;
+import java.security.Principal;
 
 @RestController
 @RequestMapping("/api/edificios")
@@ -67,5 +72,13 @@ public class EdificioController {
     }
 
     public record EdificioRequest(String nombre, String direccion, Integer cantidadDepartamentos, Integer cantidadInquilinos, Double expensasBase, Long propietarioId) {
+    }
+
+    @PreAuthorize("hasRole('INQ')")
+    @GetMapping("/mis-edificios")
+    public ResponseEntity<List<Edificio>> getMisEdificios(Authentication auth) {
+        Usuario usuario = (Usuario) auth.getPrincipal();
+        List<Edificio> edificios = edificioService.getEdificiosDelInquilino(usuario.getId());
+        return ResponseEntity.ok(edificios);
     }
 }

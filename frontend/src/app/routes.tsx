@@ -5,6 +5,7 @@ import { BuildingDetail } from "./pages/BuildingDetail";
 import { MonthlyReport } from "./pages/MonthlyReport";
 import { Login } from "./pages/Login";
 import { SignUp } from "./pages/SignUp";
+import InquilinoEdificios from "./pages/InquilinoEdificios";
 
 export const createRouter = (props: any) => createBrowserRouter([
   {
@@ -22,6 +23,10 @@ export const createRouter = (props: any) => createBrowserRouter([
       { 
         path: "building/:id/report", 
         element: <MonthlyReport {...props} />
+      },
+      {
+        path: "mis-edificios",
+        element: <InquilinoEdificios />
       },
       {
         path: "login",

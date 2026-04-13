@@ -4,6 +4,7 @@ import com.gestion.tpbackend.entity.Edificio;
 import com.gestion.tpbackend.entity.Usuario;
 import com.gestion.tpbackend.repository.EdificioRepository;
 import com.gestion.tpbackend.repository.UsuarioRepository;
+import com.gestion.tpbackend.repository.UnidadRepository;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -14,10 +15,12 @@ public class EdificioService {
 
     private final EdificioRepository edificioRepository;
     private final UsuarioRepository usuarioRepository;
+    private final UnidadRepository unidadRepository;
 
-    public EdificioService(EdificioRepository edificioRepository, UsuarioRepository usuarioRepository) {
+    public EdificioService(EdificioRepository edificioRepository, UsuarioRepository usuarioRepository, UnidadRepository unidadRepository) {
         this.edificioRepository = edificioRepository;
         this.usuarioRepository = usuarioRepository;
+        this.unidadRepository = unidadRepository;
     }
 
     public List<Edificio> obtenerTodos() {
@@ -55,5 +58,9 @@ public class EdificioService {
     private Usuario obtenerPropietario(Long propietarioId) {
         return usuarioRepository.findById(propietarioId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Propietario no encontrado"));
+    }
+
+    public List<Edificio> getEdificiosDelInquilino(Long userId) {
+        return unidadRepository.findEdificiosByInquilinoId(userId);
     }
 }
