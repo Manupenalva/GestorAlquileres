@@ -54,10 +54,38 @@ export default function InquilinoEdificios() {
 
   const validarTarjeta = () => {
     const e: Record<string, string> = {};
-    if (!/^\d{16}$/.test(datosTarjeta.numero.replace(/\s/g, ""))) e.numero = "16 dígitos requeridos.";
-    if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(datosTarjeta.vencimiento)) e.vencimiento = "Formato MM/AA.";
-    if (!/^\d{3}$/.test(datosTarjeta.cvc)) e.cvc = "3 dígitos.";
-    if (datosTarjeta.nombre.trim().length < 3) e.nombre = "Nombre inválido.";
+    
+    // 1. Validar Número
+    if (!/^\d{16}$/.test(datosTarjeta.numero.replace(/\s/g, ""))) {
+      e.numero = "16 dígitos requeridos.";
+    }
+
+    // 2. Validar Vencimiento (Formato y Fecha futura)
+    if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(datosTarjeta.vencimiento)) {
+      e.vencimiento = "Formato MM/AA.";
+    } else {
+
+      const [mesStr, anioStr] = datosTarjeta.vencimiento.split('/');
+      const mesIngresado = parseInt(mesStr, 10);
+      const anioIngresado = parseInt(anioStr, 10);
+
+      const fechaActual = new Date();
+      const mesActual = fechaActual.getMonth() + 1;
+      const anioActual = parseInt(fechaActual.getFullYear().toString().slice(-2));
+
+      if (anioIngresado < anioActual || (anioIngresado === anioActual && mesIngresado < mesActual)) {
+        e.vencimiento = "Tarjeta vencida.";
+      }
+    }
+
+    if (!/^\d{3}$/.test(datosTarjeta.cvc)) {
+      e.cvc = "3 dígitos.";
+    }
+
+    if (datosTarjeta.nombre.trim().length < 3) {
+      e.nombre = "Nombre inválido.";
+    }
+
     setErrores(e);
     return Object.keys(e).length === 0;
   };
