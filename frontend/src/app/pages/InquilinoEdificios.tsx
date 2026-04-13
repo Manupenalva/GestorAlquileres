@@ -7,6 +7,7 @@ type Edificio = {
   id: number;
   nombre: string;
   direccion?: string;
+  expensasBase?: number;
 };
 
 export default function InquilinoEdificios() {
@@ -22,8 +23,6 @@ export default function InquilinoEdificios() {
   const [notaEfectivo, setNotaEfectivo] = useState("");
   const [datosTarjeta, setDatosTarjeta] = useState({ numero: "", nombre: "", vencimiento: "", cvc: "" });
   const [errores, setErrores] = useState<Record<string, string>>({});
-
-  const montoHardcodeado = 150000;
 
   useEffect(() => {
     const fetchEdificios = async () => {
@@ -55,12 +54,10 @@ export default function InquilinoEdificios() {
   const validarTarjeta = () => {
     const e: Record<string, string> = {};
     
-    // 1. Validar Número
     if (!/^\d{16}$/.test(datosTarjeta.numero.replace(/\s/g, ""))) {
       e.numero = "16 dígitos requeridos.";
     }
 
-    // 2. Validar Vencimiento (Formato y Fecha futura)
     if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(datosTarjeta.vencimiento)) {
       e.vencimiento = "Formato MM/AA.";
     } else {
@@ -114,7 +111,7 @@ export default function InquilinoEdificios() {
                 <div className="text-center">
                   <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Total a Pagar</p>
                   <p className="text-3xl font-black text-slate-900">
-                    ${montoHardcodeado.toLocaleString('es-AR')}
+                    ${(e.expensasBase || 0).toLocaleString('es-AR')}
                   </p>
                 </div>
 
