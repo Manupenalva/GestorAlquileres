@@ -17,7 +17,7 @@ export default function InquilinoEdificios() {
   useEffect(() => {
     const fetchEdificios = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/edificio/mis-edificios`, {
+        const res = await fetch(`${API_BASE}/api/edificios/mis-edificios`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
