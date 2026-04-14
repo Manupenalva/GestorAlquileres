@@ -23,6 +23,7 @@ export default function InquilinoEdificios() {
   const [notaEfectivo, setNotaEfectivo] = useState("");
   const [datosTarjeta, setDatosTarjeta] = useState({ numero: "", nombre: "", vencimiento: "", cvc: "" });
   const [errores, setErrores] = useState<Record<string, string>>({});
+  const [pagoResultado, setPagoResultado] = useState<{ edificioId: number; estado: 'PAGADO' | 'PENDIENTE'; mensaje: string } | null>(null);
 
   useEffect(() => {
     const fetchEdificios = async () => {
@@ -85,6 +86,45 @@ export default function InquilinoEdificios() {
 
     setErrores(e);
     return Object.keys(e).length === 0;
+  };
+
+  const confirmarPagoTarjeta = async (edificioId: number, monto: number) => {
+    if (!validarTarjeta()) return;
+    setProcesando(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      await fetch(`${API_BASE}/api/pagos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ edificioId, monto, metodo: "TARJETA", estado: "PAGADO" }),
+      });
+      setPagoResultado({ edificioId, estado: "PAGADO", mensaje: "¡Pago con tarjeta registrado exitosamente!" });
+      setEdificioExpandido(null);
+      setDatosTarjeta({ numero: "", nombre: "", vencimiento: "", cvc: "" });
+    } catch {
+      setPagoResultado({ edificioId, estado: "PAGADO", mensaje: "Error al procesar el pago. Intente nuevamente." });
+    } finally {
+      setProcesando(false);
+    }
+  };
+
+  const confirmarAvisoEfectivo = async (edificioId: number, monto: number) => {
+    setProcesando(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      await fetch(`${API_BASE}/api/pagos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ edificioId, monto, metodo: "EFECTIVO", estado: "PENDIENTE", nota: notaEfectivo }),
+      });
+      setPagoResultado({ edificioId, estado: "PENDIENTE", mensaje: "Aviso enviado. El pago quedará PENDIENTE hasta que el administrador lo confirme." });
+      setEdificioExpandido(null);
+      setNotaEfectivo("");
+    } catch {
+      setPagoResultado({ edificioId, estado: "PENDIENTE", mensaje: "Error al enviar el aviso. Intente nuevamente." });
+    } finally {
+      setProcesando(false);
+    }
   };
 
   if (loading) return <p className="p-4">Cargando...</p>;
@@ -152,14 +192,14 @@ export default function InquilinoEdificios() {
                     />
                     <div className="flex gap-2">
                       <button onClick={() => setEdificioExpandido(null)} className="flex-1 py-2 font-bold text-gray-500">Cancelar</button>
-                      <button className="flex-2 bg-orange-600 text-white py-2 px-6 rounded-xl font-bold">Confirmar Aviso</button>
+                      <button onClick={() => confirmarAvisoEfectivo(e.id, e.expensasBase || 0)} disabled={procesando} className="flex-2 bg-orange-600 text-white py-2 px-6 rounded-xl font-bold disabled:opacity-50">{procesando ? "Enviando..." : "Confirmar Aviso"}</button>
                     </div>
                   </div>
                 )}
 
                 {/* FORMULARIO TARJETA (Con Validaciones) */}
                 {metodoSeleccionado === 'TARJETA' && (
-                  <form onSubmit={(ev) => { ev.preventDefault(); if(validarTarjeta()) alert("Procesando..."); }} className="max-w-md mx-auto space-y-4">
+                  <form onSubmit={(ev) => { ev.preventDefault(); confirmarPagoTarjeta(e.id, e.expensasBase || 0); }} className="max-w-md mx-auto space-y-4">
                     <div className="grid grid-cols-1 gap-4">
                       <div>
                         <input 
@@ -191,11 +231,29 @@ export default function InquilinoEdificios() {
                         />
                       </div>
                     </div>
-                    <button className="w-full bg-blue-600 text-white py-3 rounded-xl font-extrabold shadow-lg shadow-blue-200">
-                      CONFIRMAR PAGO
+                    <button type="submit" disabled={procesando} className="w-full bg-blue-600 text-white py-3 rounded-xl font-extrabold shadow-lg shadow-blue-200 disabled:opacity-50">
+                      {procesando ? "Procesando..." : "CONFIRMAR PAGO"}
                     </button>
                   </form>
                 )}
+              </div>
+            )}
+
+            {/* RESULTADO DEL PAGO */}
+            {pagoResultado?.edificioId === e.id && (
+              <div className={`border-t px-6 py-4 flex items-center justify-between gap-4 ${pagoResultado.estado === 'PAGADO' ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{pagoResultado.estado === 'PAGADO' ? '✅' : '⏳'}</span>
+                  <div>
+                    <p className={`font-extrabold text-sm ${pagoResultado.estado === 'PAGADO' ? 'text-green-800' : 'text-yellow-800'}`}>
+                      Estado: {pagoResultado.estado}
+                    </p>
+                    <p className={`text-xs ${pagoResultado.estado === 'PAGADO' ? 'text-green-700' : 'text-yellow-700'}`}>
+                      {pagoResultado.mensaje}
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setPagoResultado(null)} className="text-gray-400 hover:text-gray-600 text-lg font-bold">✕</button>
               </div>
             )}
           </div>
