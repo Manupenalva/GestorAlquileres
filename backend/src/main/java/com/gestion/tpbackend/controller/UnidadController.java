@@ -45,6 +45,7 @@ public class UnidadController {
             request.nombre(), 
             request.email(),
             request.montoAlquiler(),
+            request.porcentajeDepartamento(),
             request.diaPago(),
             request.vencimientoContrato()
         );
@@ -63,5 +64,5 @@ public class UnidadController {
     }
 
     public record UnidadRequest(String nombre, Double metrosCuadrados, String piso, Long edificioId) {}
-    public record AsignarInquilinoRequest(Long edificioId, String piso, String nombre, String email, Double montoAlquiler, Integer diaPago, String vencimientoContrato) {}
+    public record AsignarInquilinoRequest(Long edificioId, String piso, String nombre, String email, Double montoAlquiler, Double porcentajeDepartamento, Integer diaPago, String vencimientoContrato) {}
 }

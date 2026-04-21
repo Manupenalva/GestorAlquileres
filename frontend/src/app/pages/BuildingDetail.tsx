@@ -29,7 +29,7 @@ interface BuildingDetailProps {
   onDeleteBuilding: (buildingId: number) => Promise<void>;
   onAddTenant: (tenant: Omit<Tenant, 'id'>) => Promise<void>;
   onRemoveTenant: (tenantId: string) => Promise<void>;
-  onAddExpense: (expense: any) => void;
+  onAddExpense: (expense: any) => Promise<void>;
   onRegisterPayment: (payment: Omit<Payment, 'id' | 'date'>) => void;
 }
 
@@ -170,7 +170,7 @@ export function BuildingDetail({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -205,6 +205,20 @@ export function BuildingDetail({
           <CardContent>
             <div className="text-2xl">
               ${(building.expensasBase ?? 0).toLocaleString()}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <DollarSign className="size-4" />
+              Gastos Extra
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl">
+              ${(building.gastosExtra ?? 0).toLocaleString()}
             </div>
           </CardContent>
         </Card>

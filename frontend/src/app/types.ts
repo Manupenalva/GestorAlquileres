@@ -6,6 +6,7 @@ export interface Building {
   cantidadDepartamentos: number;
   cantidadInquilinos: number;
   expensasBase: number;
+  gastosExtra?: number;
 }
 
 export interface UserSummary {
@@ -27,6 +28,7 @@ export interface Tenant {
   contractExpirationDate: string;
   paymentDayOfMonth: number;
   rentAmount: number;
+  departmentPercentage: number;
 }
 
 export interface Expense {

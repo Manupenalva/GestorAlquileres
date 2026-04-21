@@ -50,6 +50,17 @@ public class EdificioService {
         return edificioRepository.save(edificio);
     }
 
+    public Edificio agregarGastoExtra(Long id, Double monto) {
+        if (monto == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El monto del gasto es obligatorio");
+        }
+
+        Edificio edificio = obtenerPorId(id);
+        Double gastoActual = edificio.getGastosExtra() != null ? edificio.getGastosExtra() : 0.0;
+        edificio.setGastosExtra(gastoActual + monto);
+        return edificioRepository.save(edificio);
+    }
+
     public void eliminar(Long id) {
         Edificio edificio = obtenerPorId(id);
         edificioRepository.delete(edificio);

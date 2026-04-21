@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 
 interface AddExpenseFormProps {
   buildingId: string;
-  onAdd: (expense: Omit<Expense, 'id' | 'date'>) => void;
+  onAdd: (expense: Omit<Expense, 'id' | 'date'>) => Promise<void>;
   triggerButton?: React.ReactNode;
 }
 

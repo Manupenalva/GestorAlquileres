@@ -68,6 +68,7 @@ export default function App() {
             contractExpirationDate: unit.vencimientoContrato || '',
             paymentDayOfMonth: unit.diaPago || 10,
             rentAmount: unit.montoAlquiler || 0,
+            departmentPercentage: unit.porcentajeDepartamento || 0,
           }));
         setTenants(allTenants);
       }
@@ -160,6 +161,7 @@ export default function App() {
         nombre: tenantData.apartmentNumber,
         email: tenantData.email,
         montoAlquiler: tenantData.rentAmount,
+        porcentajeDepartamento: tenantData.departmentPercentage,
         diaPago: tenantData.paymentDayOfMonth,
         vencimientoContrato: tenantData.contractExpirationDate,
       }),
@@ -185,13 +187,29 @@ export default function App() {
     await loadBuildings();
   };
 
-  const handleAddExpense = (expenseData: Omit<Expense, 'id' | 'date'>) => {
+  const handleAddExpense = async (expenseData: Omit<Expense, 'id' | 'date'>) => {
+    const response = await fetch(`${API_BASE}/api/edificios/${expenseData.buildingId}/gastos-extra`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        monto: expenseData.amount,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'No se pudo agregar el gasto');
+    }
+
     const newExpense: Expense = {
       ...expenseData,
       id: crypto.randomUUID(),
       date: new Date().toISOString(),
     };
     setExpenses([...expenses, newExpense]);
+    await loadBuildings();
   };
 
   const handleRegisterPayment = (paymentData: Omit<Payment, 'id' | 'date'>) => {
