@@ -141,7 +141,7 @@ export function BuildingDetail({
             <Link to={`/building/${buildingId}/report`}>
               <Button variant="default" className="gap-2">
                 <BarChart3 className="size-4" />
-                Reporte Mensual
+                Reportes Del Edificio
               </Button>
             </Link>
             <AlertDialog>
