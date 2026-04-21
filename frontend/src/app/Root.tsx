@@ -33,10 +33,10 @@ export function Root({ onAddBuilding }: any) {
             {!isLoggedIn && (
               <>
                 <Button asChild variant="ghost" size="sm">
-                  <Link to="/login">Login</Link>
+                  <Link to="/login">Iniciar sesión</Link>
                 </Button>
                 <Button asChild variant="outline" size="sm">
-                  <Link to="/signup">Sign up</Link>
+                  <Link to="/signup">Registrarse</Link>
                 </Button>
               </>
             )}
