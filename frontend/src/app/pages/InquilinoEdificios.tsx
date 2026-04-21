@@ -8,10 +8,22 @@ type Edificio = {
   nombre: string;
   direccion?: string;
   expensasBase?: number;
+  gastosExtra?: number;
+  cantidadDepartamentos?: number;
+  cantidadInquilinos?: number;
+};
+
+type UnidadInquilino = {
+  id: number;
+  edificio?: { id: number };
+  inquilino?: { id?: number; email?: string };
+  montoAlquiler?: number;
+  porcentajeDepartamento?: number;
 };
 
 export default function InquilinoEdificios() {
   const [edificios, setEdificios] = useState<Edificio[]>([]);
+  const [unidadesPorEdificio, setUnidadesPorEdificio] = useState<Record<number, UnidadInquilino>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -29,16 +41,76 @@ export default function InquilinoEdificios() {
       const token = localStorage.getItem("auth_token");
       if (!token) { navigate("/login"); return; }
       try {
+        const authUserRaw = localStorage.getItem("auth_user");
+        let authUser: { id?: number; email?: string } | null = null;
+        if (authUserRaw) {
+          try {
+            authUser = JSON.parse(authUserRaw);
+          } catch {
+            authUser = null;
+          }
+        }
+        const authUserEmail = String(authUser?.email || "").toLowerCase();
+        const authUserId = typeof authUser?.id === "number" ? authUser.id : null;
+
         const res = await fetch(`${API_BASE}/api/edificios/mis-edificios`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.status === 401) { navigate("/login"); return; }
         const data = await res.json();
         setEdificios(data);
+
+        const unidadesRes = await fetch(`${API_BASE}/api/unidades`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (unidadesRes.ok) {
+          const unidades = await unidadesRes.json();
+          const unidadesDelInquilino = (Array.isArray(unidades) ? unidades : []).filter((u: UnidadInquilino) => {
+            const emailUnidad = String(u?.inquilino?.email || "").toLowerCase();
+            const idUnidad = typeof u?.inquilino?.id === "number" ? u.inquilino.id : null;
+            return (authUserEmail && emailUnidad === authUserEmail) || (authUserId !== null && idUnidad === authUserId);
+          });
+
+          const porEdificio = unidadesDelInquilino.reduce((acc: Record<number, UnidadInquilino>, unidad: UnidadInquilino) => {
+            const edificioId = unidad?.edificio?.id;
+            if (typeof edificioId === "number" && !acc[edificioId]) {
+              acc[edificioId] = unidad;
+            }
+            return acc;
+          }, {});
+
+          setUnidadesPorEdificio(porEdificio);
+        }
       } catch (err) { setError("Error de red."); } finally { setLoading(false); }
     };
     fetchEdificios();
   }, [navigate]);
+
+  const calcularDetallePago = (edificio: Edificio) => {
+    const unidad = unidadesPorEdificio[edificio.id];
+    const alquiler = unidad?.montoAlquiler || 0;
+    const porcentajeRaw = unidad?.porcentajeDepartamento || 0;
+    // Acepta 0.25 o 25 como entrada para evitar inconsistencias de carga histórica.
+    const porcentajeNormalizado = porcentajeRaw > 1 ? porcentajeRaw / 100 : porcentajeRaw;
+    const gastoExpensas = (edificio.expensasBase || 0) * porcentajeNormalizado;
+
+    const gastosExtra = edificio.gastosExtra || 0;
+    const divisor = (edificio.cantidadDepartamentos && edificio.cantidadDepartamentos > 0)
+      ? edificio.cantidadDepartamentos
+      : ((edificio.cantidadInquilinos && edificio.cantidadInquilinos > 0) ? edificio.cantidadInquilinos : 1);
+    const gastoExtraProrrateado = gastosExtra / divisor;
+
+    const totalPagar = alquiler + gastoExpensas + gastoExtraProrrateado;
+
+    return {
+      alquiler,
+      porcentajeNormalizado,
+      gastoExpensas,
+      gastoExtraProrrateado,
+      totalPagar,
+    };
+  };
 
   const togglePanel = (id: number, metodo: 'TARJETA' | 'EFECTIVO') => {
     if (edificioExpandido === id && metodoSeleccionado === metodo) {
@@ -93,8 +165,15 @@ export default function InquilinoEdificios() {
     <div className="p-6 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold mb-6 text-gray-800">Mis Alquileres</h1>
 
+      {error && (
+        <p className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>
+      )}
+
       <div className="grid gap-6">
-        {edificios.map((e) => (
+        {edificios.map((e) => {
+          const detallePago = calcularDetallePago(e);
+
+          return (
           <div key={e.id} className="bg-white border rounded-2xl shadow-sm overflow-hidden border-gray-200">
             
             {/* --- CUERPO PRINCIPAL --- */}
@@ -104,6 +183,14 @@ export default function InquilinoEdificios() {
               <div className="flex-1">
                 <h2 className="text-xl font-extrabold text-gray-900">{e.nombre}</h2>
                 <p className="text-gray-500 text-sm">{e.direccion || "Dirección no disponible"}</p>
+                <div className="mt-2 space-y-1 text-xs text-gray-600">
+                  <p>
+                    Gasto expensas: ${detallePago.gastoExpensas.toLocaleString('es-AR')} 
+                  </p>
+                  <p>
+                    Gasto extra prorrateado: ${detallePago.gastoExtraProrrateado.toLocaleString('es-AR')} 
+                  </p>
+                </div>
               </div>
 
               {/* RECUADRO DE PAGO (Monto + Botones juntos) */}
@@ -111,7 +198,10 @@ export default function InquilinoEdificios() {
                 <div className="text-center">
                   <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Total a Pagar</p>
                   <p className="text-3xl font-black text-slate-900">
-                    ${(e.expensasBase || 0).toLocaleString('es-AR')}
+                    ${detallePago.totalPagar.toLocaleString('es-AR')}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Alquiler ${detallePago.alquiler.toLocaleString('es-AR')} + Expensas ${detallePago.gastoExpensas.toLocaleString('es-AR')} + Extra ${detallePago.gastoExtraProrrateado.toLocaleString('es-AR')}
                   </p>
                 </div>
 
@@ -199,7 +289,7 @@ export default function InquilinoEdificios() {
               </div>
             )}
           </div>
-        ))}
+        )})}
       </div>
     </div>
   );
