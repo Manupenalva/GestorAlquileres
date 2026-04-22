@@ -26,7 +26,7 @@ export default function App() {
   const [buildingsLoading, setBuildingsLoading] = useState(false);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [expenses, setExpenses] = useLocalStorage<Expense[]>('expenses', []);
-  const [payments, setPayments] = useLocalStorage<Payment[]>('payments', []);
+  const [payments, setPayments] = useState<Payment[]>([]);
 
   const loadBuildings = async (signal?: AbortSignal) => {
     setBuildingsLoading(true);
@@ -44,6 +44,7 @@ export default function App() {
       setBuildings(Array.isArray(data) ? data : []);
       
       loadAllTenants();
+      loadAllPayments();
     } finally {
       setBuildingsLoading(false);
     }
@@ -73,6 +74,27 @@ export default function App() {
       }
     } catch (error) {
       console.error('Error loading tenants:', error);
+    }
+  };
+
+  const loadAllPayments = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/pagos`);
+      if (response.ok) {
+        const contratos = await response.json();
+        const backendPayments: Payment[] = contratos.map((c: any) => ({
+          id: String(c.id),
+          tenantId: String(c.unidad?.id ?? ''),
+          buildingId: String(c.unidad?.edificio?.id ?? ''),
+          amount: c.monto,
+          month: c.fechaPago ? c.fechaPago.slice(0, 7) : '',
+          date: c.fechaPago ?? '',
+          isPaid: c.estado === 'PAGADO',
+        }));
+        setPayments(backendPayments);
+      }
+    } catch (error) {
+      console.error('Error loading payments:', error);
     }
   };
 
@@ -194,13 +216,32 @@ export default function App() {
     setExpenses([...expenses, newExpense]);
   };
 
-  const handleRegisterPayment = (paymentData: Omit<Payment, 'id' | 'date'>) => {
-    const newPayment: Payment = {
-      ...paymentData,
-      id: crypto.randomUUID(),
-      date: new Date().toISOString(),
-    };
-    setPayments([...payments, newPayment]);
+  const handleRegisterPayment = async (paymentData: Omit<Payment, 'id' | 'date'>) => {
+    // Buscar el contrato PENDIENTE de este inquilino para confirmarlo en el backend
+    const pagosRes = await fetch(`${API_BASE}/api/pagos/edificio/${paymentData.buildingId}`);
+    if (!pagosRes.ok) {
+      throw new Error('No se pudieron obtener los pagos del edificio');
+    }
+    const pagos = await pagosRes.json();
+    const contratoPendiente = pagos.find(
+      (p: any) =>
+        p.estado === 'PENDIENTE' &&
+        String(p.unidad?.id) === paymentData.tenantId,
+    );
+
+    if (!contratoPendiente) {
+      throw new Error('No se encontró un pago pendiente para este inquilino');
+    }
+
+    const confirmRes = await fetch(`${API_BASE}/api/pagos/${contratoPendiente.id}/confirmar`, {
+      method: 'PATCH',
+    });
+    if (!confirmRes.ok) {
+      throw new Error('No se pudo confirmar el pago en el servidor');
+    }
+
+    // Recargar todos los pagos desde el backend para reflejar el nuevo estado
+    await loadAllPayments();
   };
 
   const router = createRouter({
