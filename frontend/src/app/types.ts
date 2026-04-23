@@ -32,12 +32,22 @@ export interface Tenant {
 }
 
 export interface Expense {
-  id: string;
+  id: string | number;
   buildingId: string;
   type: string;
   amount: number;
   description: string;
   date: string;
+  receiptFileName?: string;
+  receiptUrl?: string;
+}
+
+export interface NewExpenseInput {
+  buildingId: string;
+  type: string;
+  amount: number;
+  description: string;
+  receiptFile: File;
 }
 
 export interface Payment {

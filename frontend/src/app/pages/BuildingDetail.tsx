@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router';
-import { Building, Tenant, Payment } from '../types';
+import { Building, Tenant, Payment, NewExpenseInput } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -30,7 +30,7 @@ interface BuildingDetailProps {
   onDeleteBuilding: (buildingId: number) => Promise<void>;
   onAddTenant: (tenant: Omit<Tenant, 'id'>) => Promise<void>;
   onRemoveTenant: (tenantId: string) => Promise<void>;
-  onAddExpense: (expense: any) => Promise<void>;
+  onAddExpense: (expense: NewExpenseInput) => Promise<void>;
   onRegisterPayment: (payment: Omit<Payment, 'id' | 'date'>) => void;
 }
 

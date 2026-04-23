@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Expense } from '../types';
+import { NewExpenseInput } from '../types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 
 interface AddExpenseFormProps {
   buildingId: string;
-  onAdd: (expense: Omit<Expense, 'id' | 'date'>) => Promise<void>;
+  onAdd: (expense: NewExpenseInput) => Promise<void>;
   triggerButton?: React.ReactNode;
 }
 
@@ -20,8 +20,10 @@ export function AddExpenseForm({ buildingId, onAdd, triggerButton }: AddExpenseF
     amount: '',
     description: '',
   });
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.type || !formData.amount) {
@@ -29,16 +31,35 @@ export function AddExpenseForm({ buildingId, onAdd, triggerButton }: AddExpenseF
       return;
     }
 
-    onAdd({
-      buildingId,
-      type: formData.type,
-      amount: parseFloat(formData.amount),
-      description: formData.description,
-    });
+    if (!receiptFile) {
+      toast.error('Debe subir una foto del comprobante');
+      return;
+    }
 
-    setFormData({ type: '', amount: '', description: '' });
-    setOpen(false);
-    toast.success('Gasto agregado exitosamente');
+    if (!receiptFile.type.startsWith('image/')) {
+      toast.error('El comprobante debe ser una imagen');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      await onAdd({
+        buildingId,
+        type: formData.type,
+        amount: parseFloat(formData.amount),
+        description: formData.description,
+        receiptFile,
+      });
+
+      setFormData({ type: '', amount: '', description: '' });
+      setReceiptFile(null);
+      setOpen(false);
+      toast.success('Gasto agregado exitosamente');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo agregar el gasto');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -91,9 +112,19 @@ export function AddExpenseForm({ buildingId, onAdd, triggerButton }: AddExpenseF
               placeholder="Detalles adicionales"
             />
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="receipt">Comprobante (foto)</Label>
+            <Input
+              id="receipt"
+              type="file"
+              accept="image/*"
+              onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)}
+            />
+          </div>
           
-          <Button type="submit" className="w-full">
-            Agregar Gasto
+          <Button type="submit" className="w-full" disabled={submitting}>
+            {submitting ? 'Guardando...' : 'Agregar Gasto'}
           </Button>
         </form>
       </DialogContent>

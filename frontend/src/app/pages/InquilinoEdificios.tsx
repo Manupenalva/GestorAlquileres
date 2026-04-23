@@ -21,6 +21,16 @@ type UnidadInquilino = {
   porcentajeDepartamento?: number;
 };
 
+type GastoComprobante = {
+  id: number;
+  type: string;
+  amount: number;
+  description?: string;
+  date: string;
+  receiptUrl?: string;
+  receiptFileName?: string;
+};
+
 export default function InquilinoEdificios() {
   const [edificios, setEdificios] = useState<Edificio[]>([]);
   const [unidadesPorEdificio, setUnidadesPorEdificio] = useState<Record<number, UnidadInquilino>>({});
@@ -31,6 +41,9 @@ export default function InquilinoEdificios() {
   const [edificioExpandido, setEdificioExpandido] = useState<number | null>(null);
   const [metodoSeleccionado, setMetodoSeleccionado] = useState<'TARJETA' | 'EFECTIVO' | null>(null);
   const [procesando, setProcesando] = useState(false);
+  const [mesComprobantes, setMesComprobantes] = useState(new Date().toISOString().slice(0, 7));
+  const [comprobantesPorEdificio, setComprobantesPorEdificio] = useState<Record<number, GastoComprobante[]>>({});
+  const [cargandoComprobantes, setCargandoComprobantes] = useState(false);
 
   const [notaEfectivo, setNotaEfectivo] = useState("");
   const [datosTarjeta, setDatosTarjeta] = useState({ numero: "", nombre: "", vencimiento: "", cvc: "" });
@@ -86,6 +99,51 @@ export default function InquilinoEdificios() {
     };
     fetchEdificios();
   }, [navigate]);
+
+  useEffect(() => {
+    const fetchComprobantes = async () => {
+      if (edificios.length === 0) {
+        setComprobantesPorEdificio({});
+        return;
+      }
+
+      setCargandoComprobantes(true);
+
+      try {
+        const token = localStorage.getItem('auth_token');
+
+        const resultados = await Promise.all(
+          edificios.map(async (edificio) => {
+            const params = new URLSearchParams({
+              edificioId: String(edificio.id),
+              month: mesComprobantes,
+            });
+
+            const response = await fetch(`${API_BASE}/api/gastos?${params.toString()}`, {
+              headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+            });
+
+            if (!response.ok) {
+              return [edificio.id, []] as const;
+            }
+
+            const data = await response.json();
+            return [edificio.id, Array.isArray(data) ? data : []] as const;
+          }),
+        );
+
+        setComprobantesPorEdificio(Object.fromEntries(resultados));
+      } catch {
+        setComprobantesPorEdificio({});
+      } finally {
+        setCargandoComprobantes(false);
+      }
+    };
+
+    fetchComprobantes();
+  }, [edificios, mesComprobantes]);
+
+  const toApiUrl = (path: string) => (path.startsWith('http') ? path : `${API_BASE}${path}`);
 
   const calcularDetallePago = (edificio: Edificio) => {
     const unidad = unidadesPorEdificio[edificio.id];
@@ -163,7 +221,18 @@ export default function InquilinoEdificios() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6 text-gray-800">Mis Alquileres</h1>
+      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <h1 className="text-2xl font-bold text-gray-800">Mis Alquileres</h1>
+        <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Comprobantes del mes</span>
+          <input
+            type="month"
+            value={mesComprobantes}
+            onChange={(ev) => setMesComprobantes(ev.target.value)}
+            className="rounded-md border border-gray-200 px-2 py-1 text-sm"
+          />
+        </div>
+      </div>
 
       {error && (
         <p className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>
@@ -220,6 +289,39 @@ export default function InquilinoEdificios() {
                   </button>
                 </div>
               </div>
+            </div>
+
+            <div className="border-t border-gray-100 bg-slate-50 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-800">Comprobantes del mes</h3>
+                {cargandoComprobantes && <span className="text-xs text-slate-500">Cargando...</span>}
+              </div>
+              {(comprobantesPorEdificio[e.id] || []).length === 0 ? (
+                <p className="text-xs text-slate-500">No hay comprobantes cargados para este mes.</p>
+              ) : (
+                <div className="space-y-2">
+                  {(comprobantesPorEdificio[e.id] || []).map((comprobante) => (
+                    <div key={comprobante.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white p-2">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{comprobante.type}</p>
+                        <p className="text-xs text-slate-500">
+                          ${Number(comprobante.amount || 0).toLocaleString('es-AR')} · {new Date(comprobante.date).toLocaleDateString('es-AR')}
+                        </p>
+                      </div>
+                      {comprobante.receiptUrl && (
+                        <a
+                          href={toApiUrl(comprobante.receiptUrl)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-md bg-slate-900 px-3 py-1 text-xs font-bold text-white hover:bg-slate-700"
+                        >
+                          Ver comprobante
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* --- PANELES DESPLEGABLES --- */}

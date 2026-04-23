@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router';
-import { Building, Tenant, Payment, Expense } from '../types';
+import { Building, Tenant, Payment, Expense, NewExpenseInput } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { AddExpenseForm } from '../components/AddExpenseForm';
@@ -13,7 +13,7 @@ interface MonthlyReportProps {
   payments: Payment[];
   expenses: Expense[];
   buildingsLoading?: boolean;
-  onAddExpense: (expense: any) => void;
+  onAddExpense: (expense: NewExpenseInput) => Promise<void>;
 }
 
 export function MonthlyReport({ 
@@ -24,6 +24,7 @@ export function MonthlyReport({
   buildingsLoading,
   onAddExpense 
 }: MonthlyReportProps) {
+  const toApiUrl = (path: string) => (path.startsWith('http') ? path : `${API_BASE}${path}`);
   const { id } = useParams();
   const building = buildings.find(b => String(b.id) === id);
   const buildingId = building ? String(building.id) : id ?? '';
@@ -273,6 +274,16 @@ export function MonthlyReport({
                     <p className="text-xs text-muted-foreground">
                       {new Date(expense.date).toLocaleDateString()}
                     </p>
+                    {expense.receiptUrl && (
+                      <a
+                        href={toApiUrl(expense.receiptUrl)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-blue-600 hover:underline"
+                      >
+                        Ver comprobante
+                      </a>
+                    )}
                   </div>
                   <div className="text-right">
                     <p className="text-lg">${expense.amount.toLocaleString()}</p>
