@@ -4,7 +4,6 @@ import com.gestion.tpbackend.entity.Unidad;
 import com.gestion.tpbackend.service.UnidadService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 
 @RestController
@@ -46,6 +45,7 @@ public class UnidadController {
             request.nombre(), 
             request.email(),
             request.montoAlquiler(),
+            request.porcentajeDepartamento(),
             request.diaPago(),
             request.vencimientoContrato()
         );
@@ -64,5 +64,5 @@ public class UnidadController {
     }
 
     public record UnidadRequest(String nombre, Double metrosCuadrados, String piso, Long edificioId) {}
-    public record AsignarInquilinoRequest(Long edificioId, String piso, String nombre, String email, Double montoAlquiler, Integer diaPago, String vencimientoContrato) {}
+    public record AsignarInquilinoRequest(Long edificioId, String piso, String nombre, String email, Double montoAlquiler, Double porcentajeDepartamento, Integer diaPago, String vencimientoContrato) {}
 }

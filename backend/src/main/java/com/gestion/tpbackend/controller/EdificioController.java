@@ -8,11 +8,15 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
 @RequestMapping("/api/edificios")
@@ -60,6 +64,11 @@ public class EdificioController {
         );
     }
 
+    @PatchMapping("/{id}/gastos-extra")
+    public Edificio agregarGastoExtra(@PathVariable Long id, @RequestBody AgregarGastoExtraRequest request) {
+        return edificioService.agregarGastoExtra(id, request.monto());
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void eliminar(@PathVariable Long id) {
@@ -67,5 +76,16 @@ public class EdificioController {
     }
 
     public record EdificioRequest(String nombre, String direccion, Integer cantidadDepartamentos, Integer cantidadInquilinos, Double expensasBase, Long propietarioId) {
+    }
+
+    public record AgregarGastoExtraRequest(Double monto) {
+    }
+
+    @PreAuthorize("hasRole('INQ')")
+    @GetMapping("/mis-edificios")
+    public ResponseEntity<List<Edificio>> getMisEdificios(Authentication auth) {
+        String email = auth.getName(); 
+        List<Edificio> edificios = edificioService.getEdificiosDelInquilinoPorEmail(email);
+        return ResponseEntity.ok(edificios);
     }
 }

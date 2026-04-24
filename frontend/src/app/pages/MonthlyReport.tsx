@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router';
-import { Building, Tenant, Payment, Expense } from '../types';
+import { Building, Tenant, Payment, Expense, NewExpenseInput } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { AddExpenseForm } from '../components/AddExpenseForm';
@@ -26,6 +26,7 @@ export function MonthlyReport({
   onAddExpense,
   userRole = 'ADMIN' 
 }: MonthlyReportProps) {
+  const toApiUrl = (path: string) => (path.startsWith('http') ? path : `${API_BASE}${path}`);
   const { id } = useParams();
   
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());

@@ -58,7 +58,7 @@ public class UnidadService {
         return unidadGuardada;
     }
 
-    public Unidad asignarInquilinoPorEmail(Long edificioId, String piso, String nombre, String email, Double montoAlquiler, Integer diaPago, String vencimientoContrato) {
+    public Unidad asignarInquilinoPorEmail(Long edificioId, String piso, String nombre, String email, Double montoAlquiler, Double porcentajeDepartamento, Integer diaPago, String vencimientoContrato) {
         Usuario inquilino = usuarioRepository.findByEmail(email)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "El usuario con email " + email + " no existe."));
             
@@ -70,6 +70,7 @@ public class UnidadService {
             
         unidad.setInquilino(inquilino);
         unidad.setMontoAlquiler(montoAlquiler);
+        unidad.setPorcentajeDepartamento(porcentajeDepartamento);
         unidad.setDiaPago(diaPago);
         unidad.setVencimientoContrato(vencimientoContrato);
         

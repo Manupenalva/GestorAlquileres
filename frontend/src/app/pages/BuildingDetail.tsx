@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router';
-import { Building, Tenant, Payment } from '../types';
+import { Building, Tenant, Payment, NewExpenseInput } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import { Input } from '../components/ui/input';
 import { AddTenantForm } from '../components/AddTenantForm';
 import { AddExpenseForm } from '../components/AddExpenseForm';
 import { RegisterPaymentDialog } from '../components/RegisterPaymentDialog';
@@ -18,7 +19,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '../components/ui/alert-dialog';
-import { ArrowLeft, Building2, MapPin, Home, DollarSign, BarChart3, Phone, Mail, Calendar, CheckCircle2, XCircle, Users, Trash2 } from 'lucide-react';
+import { ArrowLeft, Building2, MapPin, Home, DollarSign, BarChart3, Phone, Mail, Calendar, CheckCircle2, XCircle, Users, Trash2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface BuildingDetailProps {
@@ -29,7 +30,7 @@ interface BuildingDetailProps {
   onDeleteBuilding: (buildingId: number) => Promise<void>;
   onAddTenant: (tenant: Omit<Tenant, 'id'>) => Promise<void>;
   onRemoveTenant: (tenantId: string) => Promise<void>;
-  onAddExpense: (expense: any) => void;
+  onAddExpense: (expense: NewExpenseInput) => Promise<void>;
   onRegisterPayment: (payment: Omit<Payment, 'id' | 'date'>) => void;
 }
 
@@ -46,10 +47,20 @@ export function BuildingDetail({
 }: BuildingDetailProps) {
   const navigate = useNavigate();
   const [deleting, setDeleting] = useState(false);
+  const [tenantSearch, setTenantSearch] = useState('');
   const { id } = useParams();
   const building = buildings.find(b => String(b.id) === id);
   const buildingId = building ? String(building.id) : id ?? '';
   const buildingTenants = tenants.filter(t => t.buildingId === buildingId);
+  const normalizedTenantSearch = tenantSearch.trim().toLowerCase();
+  const filteredTenants = buildingTenants.filter((tenant) => {
+    if (!normalizedTenantSearch) {
+      return true;
+    }
+
+    const fullName = `${tenant.firstName} ${tenant.lastName}`.toLowerCase();
+    return fullName.includes(normalizedTenantSearch);
+  });
 
   if (!building && deleting) {
     return (
@@ -170,7 +181,7 @@ export function BuildingDetail({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -208,20 +219,47 @@ export function BuildingDetail({
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <DollarSign className="size-4" />
+              Gastos Extra
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl">
+              ${(building.gastosExtra ?? 0).toLocaleString()}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Inquilinos</CardTitle>
+          <div className="relative mt-3">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={tenantSearch}
+              onChange={(e) => setTenantSearch(e.target.value)}
+              placeholder="Buscar inquilino por nombre..."
+              className="pl-10"
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {buildingTenants.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               No hay inquilinos registrados en este edificio
             </div>
+          ) : filteredTenants.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No se encontraron inquilinos para "{tenantSearch}"
+            </div>
           ) : (
             <div className="space-y-4">
-              {buildingTenants.map((tenant) => {
+              {filteredTenants.map((tenant) => {
                 const paymentStatus = getCurrentMonthPaymentStatus(tenant.id);
                 const isPaid = paymentStatus?.isPaid || false;
                 
