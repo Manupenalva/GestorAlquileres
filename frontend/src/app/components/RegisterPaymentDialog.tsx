@@ -3,7 +3,7 @@ import { Payment } from '../types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -12,7 +12,7 @@ interface RegisterPaymentDialogProps {
   tenantName: string;
   buildingId: string;
   rentAmount: number;
-  onRegister: (payment: Omit<Payment, 'id' | 'date'>) => void;
+  onRegister: (payment: Omit<Payment, 'id' | 'date'>) => Promise<void>;
 }
 
 export function RegisterPaymentDialog({ 
@@ -23,12 +23,13 @@ export function RegisterPaymentDialog({
   onRegister 
 }: RegisterPaymentDialogProps) {
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     amount: rentAmount.toString(),
     month: new Date().toISOString().slice(0, 7), // YYYY-MM
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.amount || !formData.month) {
@@ -36,16 +37,23 @@ export function RegisterPaymentDialog({
       return;
     }
 
-    onRegister({
-      tenantId,
-      buildingId,
-      amount: parseFloat(formData.amount),
-      month: formData.month,
-      isPaid: true,
-    });
+    setLoading(true);
+    try {
+      await onRegister({
+        tenantId,
+        buildingId,
+        amount: parseFloat(formData.amount),
+        month: formData.month,
+        isPaid: true,
+      });
 
-    setOpen(false);
-    toast.success('Pago registrado exitosamente');
+      setOpen(false);
+      toast.success('Pago registrado exitosamente');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo registrar el pago');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -62,6 +70,9 @@ export function RegisterPaymentDialog({
             <DollarSign className="size-5" />
             Registrar Pago - {tenantName}
           </DialogTitle>
+          <DialogDescription>
+            Confirmá el pago en efectivo del inquilino. Esto actualizará el estado en la base de datos.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
@@ -87,8 +98,8 @@ export function RegisterPaymentDialog({
             />
           </div>
           
-          <Button type="submit" className="w-full">
-            Confirmar Pago
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? 'Confirmando...' : 'Confirmar Pago'}
           </Button>
         </form>
       </DialogContent>

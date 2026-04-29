@@ -11,7 +11,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.util.List;
-import java.util.ArrayList;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.CascadeType;
 
@@ -37,6 +36,9 @@ public class Edificio {
 
     @Column(name = "expensas_base", nullable = false)
     private Double expensasBase;
+
+    @Column(name = "gastos_extra")
+    private Double gastosExtra;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "propietario_id", nullable = false)
@@ -101,6 +103,14 @@ public class Edificio {
 
     public void setExpensasBase(Double expensasBase) {
         this.expensasBase = expensasBase;
+    }
+
+    public Double getGastosExtra() {
+        return gastosExtra;
+    }
+
+    public void setGastosExtra(Double gastosExtra) {
+        this.gastosExtra = gastosExtra;
     }
 
     public Usuario getPropietario() {

@@ -39,6 +39,9 @@ public class Unidad {
     @Column
     private String vencimientoContrato;
 
+    @Column(name = "porcentaje_departamento")
+    private Double porcentajeDepartamento;
+
     public Unidad() {
     }
 
@@ -115,5 +118,13 @@ public class Unidad {
 
     public void setVencimientoContrato(String vencimientoContrato) {
         this.vencimientoContrato = vencimientoContrato;
+    }
+
+    public Double getPorcentajeDepartamento() {
+        return porcentajeDepartamento;
+    }
+
+    public void setPorcentajeDepartamento(Double porcentajeDepartamento) {
+        this.porcentajeDepartamento = porcentajeDepartamento;
     }
 }

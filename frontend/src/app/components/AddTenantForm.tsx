@@ -24,6 +24,7 @@ export function AddTenantForm({ buildingId, onAdd }: AddTenantFormProps) {
     contractExpirationDate: '',
     paymentDayOfMonth: '',
     rentAmount: '',
+    departmentPercentage: '',
   });
 
   const [loading, setLoading] = useState(false);
@@ -31,7 +32,7 @@ export function AddTenantForm({ buildingId, onAdd }: AddTenantFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.rentAmount) {
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.rentAmount || !formData.departmentPercentage) {
       toast.error('Por favor complete los campos requeridos');
       return;
     }
@@ -49,6 +50,7 @@ export function AddTenantForm({ buildingId, onAdd }: AddTenantFormProps) {
         contractExpirationDate: formData.contractExpirationDate,
         paymentDayOfMonth: parseInt(formData.paymentDayOfMonth) || 10,
         rentAmount: parseFloat(formData.rentAmount),
+        departmentPercentage: parseFloat(formData.departmentPercentage),
       });
 
       setFormData({
@@ -61,6 +63,7 @@ export function AddTenantForm({ buildingId, onAdd }: AddTenantFormProps) {
         contractExpirationDate: '',
         paymentDayOfMonth: '',
         rentAmount: '',
+        departmentPercentage: '',
       });
       setOpen(false);
       toast.success('Inquilino agregado exitosamente');
@@ -161,6 +164,20 @@ export function AddTenantForm({ buildingId, onAdd }: AddTenantFormProps) {
               value={formData.rentAmount}
               onChange={(e) => setFormData({ ...formData, rentAmount: e.target.value })}
               placeholder="50000"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="departmentPercentage">Porcentaje del Departamento (%) *</Label>
+            <Input
+              id="departmentPercentage"
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              value={formData.departmentPercentage}
+              onChange={(e) => setFormData({ ...formData, departmentPercentage: e.target.value })}
+              placeholder="25"
             />
           </div>
           
