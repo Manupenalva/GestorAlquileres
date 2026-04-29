@@ -48,6 +48,8 @@ export default function InquilinoEdificios() {
   const [notaEfectivo, setNotaEfectivo] = useState("");
   const [datosTarjeta, setDatosTarjeta] = useState({ numero: "", nombre: "", vencimiento: "", cvc: "" });
   const [errores, setErrores] = useState<Record<string, string>>({});
+  const [errorGeneral, setErrorGeneral] = useState<string | null>(null); // Nuevo estado
+  const [pagoResultado, setPagoResultado] = useState<{ edificioId: number; estado: 'PAGADO' | 'PENDIENTE'; mensaje: string } | null>(null);
 
   useEffect(() => {
     const fetchEdificios = async () => {
@@ -178,46 +180,95 @@ export default function InquilinoEdificios() {
       setEdificioExpandido(id);
       setMetodoSeleccionado(metodo);
       setErrores({});
+      setErrorGeneral(null); // Limpiar errores al cambiar
     }
   };
 
   const validarTarjeta = () => {
     const e: Record<string, string> = {};
+    setErrorGeneral(null);
     
+    // Validar Número
     if (!/^\d{16}$/.test(datosTarjeta.numero.replace(/\s/g, ""))) {
       e.numero = "16 dígitos requeridos.";
     }
 
+    // Validar Vencimiento
     if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(datosTarjeta.vencimiento)) {
-      e.vencimiento = "Formato MM/AA.";
+      e.vencimiento = "Formato MM/AA requerido.";
     } else {
-
       const [mesStr, anioStr] = datosTarjeta.vencimiento.split('/');
       const mesIngresado = parseInt(mesStr, 10);
       const anioIngresado = parseInt(anioStr, 10);
-
       const fechaActual = new Date();
       const mesActual = fechaActual.getMonth() + 1;
       const anioActual = parseInt(fechaActual.getFullYear().toString().slice(-2));
 
       if (anioIngresado < anioActual || (anioIngresado === anioActual && mesIngresado < mesActual)) {
-        e.vencimiento = "Tarjeta vencida.";
+        e.vencimiento = "La tarjeta está vencida.";
       }
     }
 
+    // Validar CVC
     if (!/^\d{3}$/.test(datosTarjeta.cvc)) {
-      e.cvc = "3 dígitos.";
+      e.cvc = "3 dígitos requeridos.";
     }
 
+    // Validar Nombre
     if (datosTarjeta.nombre.trim().length < 3) {
-      e.nombre = "Nombre inválido.";
+      e.nombre = "Ingrese el nombre del titular.";
     }
 
     setErrores(e);
-    return Object.keys(e).length === 0;
+
+    if (Object.keys(e).length > 0) {
+      setErrorGeneral("La tarjeta no es válida. Revisa los campos marcados.");
+      return false;
+    }
+    return true;
   };
 
-  if (loading) return <p className="p-4">Cargando...</p>;
+  const confirmarPagoTarjeta = async (edificioId: number, monto: number) => {
+    if (!validarTarjeta()) return;
+    setProcesando(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      await fetch(`${API_BASE}/api/pagos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        // IMPORTANTE: El backend debería validar esto, pero enviamos el estado deseado
+        body: JSON.stringify({ edificioId, monto, metodo: "TARJETA", estado: "PAGADO" }),
+      });
+      setPagoResultado({ edificioId, estado: "PAGADO", mensaje: "¡Pago con tarjeta registrado exitosamente!" });
+      setEdificioExpandido(null);
+      setDatosTarjeta({ numero: "", nombre: "", vencimiento: "", cvc: "" });
+    } catch {
+      setErrorGeneral("Error de conexión al procesar el pago.");
+    } finally {
+      setProcesando(false);
+    }
+  };
+
+  const confirmarAvisoEfectivo = async (edificioId: number, monto: number) => {
+    setProcesando(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      await fetch(`${API_BASE}/api/pagos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ edificioId, monto, metodo: "EFECTIVO", estado: "PENDIENTE", nota: notaEfectivo }),
+      });
+      setPagoResultado({ edificioId, estado: "PENDIENTE", mensaje: "Aviso enviado. Pendiente de confirmación." });
+      setEdificioExpandido(null);
+      setNotaEfectivo("");
+    } catch {
+      setErrorGeneral("Error al enviar el aviso.");
+    } finally {
+      setProcesando(false);
+    }
+  };
+
+  if (loading) return <p className="p-4 font-bold text-gray-600">Cargando edificios...</p>;
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -237,6 +288,7 @@ export default function InquilinoEdificios() {
       {error && (
         <p className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>
       )}
+      <h1 className="text-2xl font-bold mb-6 text-gray-800">Mis Alquileres / Expensas</h1>
 
       <div className="grid gap-6">
         {edificios.map((e) => {
@@ -245,10 +297,7 @@ export default function InquilinoEdificios() {
           return (
           <div key={e.id} className="bg-white border rounded-2xl shadow-sm overflow-hidden border-gray-200">
             
-            {/* --- CUERPO PRINCIPAL --- */}
             <div className="p-6 flex flex-col md:flex-row justify-between items-center gap-6">
-              
-              {/* Info Izquierda */}
               <div className="flex-1">
                 <h2 className="text-xl font-extrabold text-gray-900">{e.nombre}</h2>
                 <p className="text-gray-500 text-sm">{e.direccion || "Dirección no disponible"}</p>
@@ -262,7 +311,6 @@ export default function InquilinoEdificios() {
                 </div>
               </div>
 
-              {/* RECUADRO DE PAGO (Monto + Botones juntos) */}
               <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col items-center gap-3 min-w-[240px]">
                 <div className="text-center">
                   <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Total a Pagar</p>
@@ -272,6 +320,7 @@ export default function InquilinoEdificios() {
                   <p className="text-[11px] text-slate-500 mt-1">
                     Alquiler ${detallePago.alquiler.toLocaleString('es-AR')} + Expensas ${detallePago.gastoExpensas.toLocaleString('es-AR')} + Extra ${detallePago.gastoExtraProrrateado.toLocaleString('es-AR')}
                   </p>
+                  <p className="text-3xl font-black text-slate-900">${(e.expensasBase || 0).toLocaleString('es-AR')}</p>
                 </div>
 
                 <div className="flex gap-2 w-full">
@@ -328,30 +377,30 @@ export default function InquilinoEdificios() {
             {edificioExpandido === e.id && (
               <div className="bg-gray-50 border-t p-6 animate-in slide-in-from-top-2 duration-300">
                 
-                {/* FORMULARIO EFECTIVO (El que estaba bien) */}
                 {metodoSeleccionado === 'EFECTIVO' && (
                   <div className="max-w-md mx-auto">
-                    <div className="bg-orange-100 text-orange-800 p-3 rounded-lg mb-4 text-sm font-medium">
-                      Aviso: El pago quedará pendiente hasta que el dueño reciba el dinero.
+                    <div className="bg-orange-100 text-orange-800 p-3 rounded-lg mb-4 text-sm font-medium border border-orange-200">
+                      Aviso: El pago quedará <strong>PENDIENTE</strong> hasta que el dueño reciba el dinero.
                     </div>
                     <label className="block text-sm font-bold text-gray-700 mb-2">Mensaje para el administrador</label>
                     <textarea 
                       className="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-orange-400 mb-4"
                       rows={3}
-                      placeholder="Ej: Paso mañana después de las 18hs..."
+                      placeholder="Ej: Paso mañana a dejar el dinero..."
                       value={notaEfectivo}
                       onChange={(ev) => setNotaEfectivo(ev.target.value)}
                     />
                     <div className="flex gap-2">
                       <button onClick={() => setEdificioExpandido(null)} className="flex-1 py-2 font-bold text-gray-500">Cancelar</button>
-                      <button className="flex-2 bg-orange-600 text-white py-2 px-6 rounded-xl font-bold">Confirmar Aviso</button>
+                      <button onClick={() => confirmarAvisoEfectivo(e.id, e.expensasBase || 0)} disabled={procesando} className="flex-2 bg-orange-600 text-white py-2 px-6 rounded-xl font-bold disabled:opacity-50">
+                        {procesando ? "Enviando..." : "Confirmar Aviso"}
+                      </button>
                     </div>
                   </div>
                 )}
 
-                {/* FORMULARIO TARJETA (Con Validaciones) */}
                 {metodoSeleccionado === 'TARJETA' && (
-                  <form onSubmit={(ev) => { ev.preventDefault(); if(validarTarjeta()) alert("Procesando..."); }} className="max-w-md mx-auto space-y-4">
+                  <form onSubmit={(ev) => { ev.preventDefault(); confirmarPagoTarjeta(e.id, e.expensasBase || 0); }} className="max-w-md mx-auto space-y-4">
                     <div className="grid grid-cols-1 gap-4">
                       <div>
                         <input 
@@ -362,32 +411,67 @@ export default function InquilinoEdificios() {
                         />
                         {errores.numero && <p className="text-red-500 text-[10px] mt-1 font-bold">{errores.numero}</p>}
                       </div>
-                      <input 
-                        type="text" placeholder="Nombre completo como figura"
-                        className="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-400"
-                        value={datosTarjeta.nombre}
-                        onChange={(ev) => setDatosTarjeta({...datosTarjeta, nombre: ev.target.value.toUpperCase()})}
-                      />
+                      
+                      <div>
+                        <input 
+                          type="text" placeholder="Nombre del Titular"
+                          className={`w-full p-3 border rounded-xl outline-none ${errores.nombre ? 'border-red-500 ring-1 ring-red-100' : 'focus:ring-2 focus:ring-blue-400'}`}
+                          value={datosTarjeta.nombre}
+                          onChange={(ev) => setDatosTarjeta({...datosTarjeta, nombre: ev.target.value.toUpperCase()})}
+                        />
+                        {errores.nombre && <p className="text-red-500 text-[10px] mt-1 font-bold">{errores.nombre}</p>}
+                      </div>
+
                       <div className="grid grid-cols-2 gap-4">
-                        <input 
-                          type="text" placeholder="MM/AA"
-                          className="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-400"
-                          value={datosTarjeta.vencimiento}
-                          onChange={(ev) => setDatosTarjeta({...datosTarjeta, vencimiento: ev.target.value})}
-                        />
-                        <input 
-                          type="text" placeholder="CVC"
-                          className="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-400"
-                          value={datosTarjeta.cvc}
-                          onChange={(ev) => setDatosTarjeta({...datosTarjeta, cvc: ev.target.value})}
-                        />
+                        <div>
+                          <input 
+                            type="text" placeholder="MM/AA"
+                            className={`w-full p-3 border rounded-xl outline-none ${errores.vencimiento ? 'border-red-500 ring-1 ring-red-100' : 'focus:ring-2 focus:ring-blue-400'}`}
+                            value={datosTarjeta.vencimiento}
+                            onChange={(ev) => setDatosTarjeta({...datosTarjeta, vencimiento: ev.target.value})}
+                          />
+                          {errores.vencimiento && <p className="text-red-500 text-[10px] mt-1 font-bold">{errores.vencimiento}</p>}
+                        </div>
+                        <div>
+                          <input 
+                            type="text" placeholder="CVC"
+                            className={`w-full p-3 border rounded-xl outline-none ${errores.cvc ? 'border-red-500 ring-1 ring-red-100' : 'focus:ring-2 focus:ring-blue-400'}`}
+                            value={datosTarjeta.cvc}
+                            onChange={(ev) => setDatosTarjeta({...datosTarjeta, cvc: ev.target.value})}
+                          />
+                          {errores.cvc && <p className="text-red-500 text-[10px] mt-1 font-bold">{errores.cvc}</p>}
+                        </div>
                       </div>
                     </div>
-                    <button className="w-full bg-blue-600 text-white py-3 rounded-xl font-extrabold shadow-lg shadow-blue-200">
-                      CONFIRMAR PAGO
+
+                    {errorGeneral && (
+                      <div className="bg-red-50 text-red-600 p-3 rounded-lg text-xs font-bold border border-red-100">
+                        ⚠️ {errorGeneral}
+                      </div>
+                    )}
+
+                    <button type="submit" disabled={procesando} className="w-full bg-blue-600 text-white py-3 rounded-xl font-extrabold shadow-lg shadow-blue-200 disabled:opacity-50 transition-transform active:scale-95">
+                      {procesando ? "Procesando..." : "CONFIRMAR PAGO"}
                     </button>
                   </form>
                 )}
+              </div>
+            )}
+
+            {pagoResultado?.edificioId === e.id && (
+              <div className={`border-t px-6 py-4 flex items-center justify-between gap-4 ${pagoResultado.estado === 'PAGADO' ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{pagoResultado.estado === 'PAGADO' ? '✅' : '⏳'}</span>
+                  <div>
+                    <p className={`font-extrabold text-sm ${pagoResultado.estado === 'PAGADO' ? 'text-green-800' : 'text-yellow-800'}`}>
+                      Estado: {pagoResultado.estado}
+                    </p>
+                    <p className={`text-xs ${pagoResultado.estado === 'PAGADO' ? 'text-green-700' : 'text-yellow-700'}`}>
+                      {pagoResultado.mensaje}
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setPagoResultado(null)} className="text-gray-400 hover:text-gray-600 text-lg font-bold">✕</button>
               </div>
             )}
           </div>

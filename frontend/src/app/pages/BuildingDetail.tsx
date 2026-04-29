@@ -30,8 +30,8 @@ interface BuildingDetailProps {
   onDeleteBuilding: (buildingId: number) => Promise<void>;
   onAddTenant: (tenant: Omit<Tenant, 'id'>) => Promise<void>;
   onRemoveTenant: (tenantId: string) => Promise<void>;
-  onAddExpense: (expense: NewExpenseInput) => Promise<void>;
-  onRegisterPayment: (payment: Omit<Payment, 'id' | 'date'>) => void;
+  onAddExpense: (expense: any) => void;
+  onRegisterPayment: (payment: Omit<Payment, 'id' | 'date'>) => Promise<void>;
 }
 
 export function BuildingDetail({ 
