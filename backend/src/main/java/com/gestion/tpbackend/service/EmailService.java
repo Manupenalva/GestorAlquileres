@@ -54,7 +54,7 @@ public class EmailService {
                 .append(" (").append(formatter.format(((java.time.Instant) gasto.get("fecha")).atZone(ZoneId.systemDefault()))).append(")\n");
         }
 
-        text.append("\nPor favor, revisa el pago en el panel de administración: ").append(frontendUrl).append("/admin/pagos\n");
+        text.append("\nPor favor, revisa el pago en el panel de administración: ").append(frontendUrl).append("\n");
         text.append("\nGracias!");
 
         SimpleMailMessage message = new SimpleMailMessage();
@@ -77,7 +77,7 @@ public class EmailService {
                 .append(" (").append(formatter.format(((java.time.Instant) gasto.get("fecha")).atZone(ZoneId.systemDefault()))).append(")\n");
         }
 
-        text.append("\nPuedes ver más detalles en tu perfil: ").append(frontendUrl).append("/perfil\n");
+        text.append("\nPuedes ver más detalles en tu perfil: ").append(frontendUrl).append("/mis-edificios\n");
         text.append("\nGracias por tu pago!");
 
         SimpleMailMessage message = new SimpleMailMessage();
@@ -100,7 +100,7 @@ public class EmailService {
                 .append(" (").append(formatter.format(((java.time.Instant) gasto.get("fecha")).atZone(ZoneId.systemDefault()))).append(")\n");
         }
 
-        text.append("\nPor favor, revisa el pago en el panel de administración: ").append(frontendUrl).append("/admin/pagos\n");
+        text.append("\nPor favor, revisa el pago en el panel de administración: ").append(frontendUrl).append("\n");
         text.append("\nGracias!");
 
         SimpleMailMessage message = new SimpleMailMessage();
