@@ -7,12 +7,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import com.gestion.tpbackend.entity.RolUsuario;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
+    @Value("${app.admin.creation.password}")
+    private String adminCreationPassword;
 
     public UsuarioService(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder) {
         this.usuarioRepository = usuarioRepository;
@@ -29,6 +33,13 @@ public class UsuarioService {
     }
 
     public Usuario crear(Usuario usuario) {
+        System.out.println("ROL: " + usuario.getRol());
+        System.out.println("CLAVE: " + usuario.getClaveSecreta());
+        if (usuario.getRol() == RolUsuario.ADMIN || usuario.getRol() == RolUsuario.PROP) {
+            if (usuario.getClaveSecreta() == null || !adminCreationPassword.equals(usuario.getClaveSecreta())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Clave de acceso incorrecta");
+            }
+        }
         usuario.setContrasena(passwordEncoder.encode(usuario.getContrasena()));
         return usuarioRepository.save(usuario);
     }
