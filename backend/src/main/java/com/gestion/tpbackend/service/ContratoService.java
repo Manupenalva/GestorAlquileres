@@ -80,11 +80,11 @@ public class ContratoService {
             String nombrePropietario = propietarioEdificio.getNombre();
 
             if (metodo == MetodoPago.TARJETA) {
-                emailService.enviarConfirmacionPago(inquilino.getEmail(), inquilino.getNombre(), detallesPago);
-                emailService.enviarAdminConfirmarPago(propietarioEdificio.getEmail(), propietarioEdificio.getNombre(), detallesPago);
+                emailService.enviarConfirmacionPago(inquilino.getEmail(), inquilino.getNombre(), detallesPago, metodo, nota, unidad);
+                emailService.enviarAdminConfirmarPago(propietarioEdificio.getEmail(), propietarioEdificio.getNombre(), detallesPago, inquilino.getNombre(), metodo, nota, unidad);
             } else if (metodo == MetodoPago.EFECTIVO) {
-                emailService.enviarPagoEfectivo(inquilino.getEmail(), inquilino.getNombre(), detallesPago);
-                emailService.enviarAdminPagoEfectivo(propietarioEdificio.getEmail(), propietarioEdificio.getNombre(), detallesPago);
+                emailService.enviarPagoEfectivo(inquilino.getEmail(), inquilino.getNombre(), detallesPago, metodo, nota, unidad);
+                emailService.enviarAdminPagoEfectivo(propietarioEdificio.getEmail(), propietarioEdificio.getNombre(), detallesPago, inquilino.getNombre(), metodo, nota, unidad);
             }
         } 
 
