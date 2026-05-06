@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
+import { History, ArrowLeft, CreditCard, Banknote, Calendar, Building2 } from "lucide-react";
+import { Button } from "../components/ui/button";
+import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/card";
+import { Badge } from "../components/ui/badge";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
 
@@ -50,6 +54,26 @@ export default function InquilinoEdificios() {
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null); // Nuevo estado
   const [pagoResultado, setPagoResultado] = useState<{ edificioId: number; estado: 'PAGADO' | 'PENDIENTE'; mensaje: string } | null>(null);
+  const [historialPagos, setHistorialPagos] = useState<any[]>([]);
+  const [historialContratos, setHistorialContratos] = useState<any[]>([]);
+  const [verHistorial, setVerHistorial] = useState(false);
+
+  useEffect(() => {
+    if (verHistorial) {
+      const fetchHistorial = async () => {
+        const token = localStorage.getItem("auth_token");
+        try {
+          const [pagosRes, contratosRes] = await Promise.all([
+            fetch(`${API_BASE}/api/pagos/mis-pagos`, { headers: { Authorization: `Bearer ${token}` } }),
+            fetch(`${API_BASE}/api/pagos/mis-contratos`, { headers: { Authorization: `Bearer ${token}` } })
+          ]);
+          if (pagosRes.ok) setHistorialPagos(await pagosRes.json());
+          if (contratosRes.ok) setHistorialContratos(await contratosRes.json());
+        } catch (err) { console.error("Error al cargar historial", err); }
+      };
+      fetchHistorial();
+    }
+  }, [verHistorial]);
 
   useEffect(() => {
     const fetchEdificios = async () => {
@@ -271,26 +295,166 @@ export default function InquilinoEdificios() {
   if (loading) return <p className="p-4 font-bold text-gray-600">Cargando edificios...</p>;
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <h1 className="text-2xl font-bold text-gray-800">Mis Alquileres</h1>
-        <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2">
-          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Comprobantes del mes</span>
-          <input
-            type="month"
-            value={mesComprobantes}
-            onChange={(ev) => setMesComprobantes(ev.target.value)}
-            className="rounded-md border border-gray-200 px-2 py-1 text-sm"
-          />
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">
+            {verHistorial ? "Mi Historial" : "Mis Alquileres"}
+          </h1>
+          <p className="text-gray-500 text-sm mt-1">
+            {verHistorial ? "Consulta tus contratos y pagos pasados" : "Gestiona tus unidades actuales y realiza pagos"}
+          </p>
         </div>
-      </div>
+        
+        <div className="flex flex-wrap items-center gap-3">
+          <Button 
+            variant={verHistorial ? "outline" : "default"}
+            onClick={() => setVerHistorial(!verHistorial)}
+            className="rounded-xl font-bold gap-2 h-11 px-6 shadow-sm transition-all"
+          >
+            {verHistorial ? (
+              <><ArrowLeft className="size-4" /> Volver a Alquileres</>
+            ) : (
+              <><History className="size-4" /> Ver Mi Historial Completo</>
+            )}
+          </Button>
+
+          {!verHistorial && (
+            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Mes</span>
+              <input
+                type="month"
+                value={mesComprobantes}
+                onChange={(ev) => setMesComprobantes(ev.target.value)}
+                className="bg-transparent border-none p-0 text-sm font-bold focus:ring-0 text-gray-700 cursor-pointer"
+              />
+            </div>
+          )}
+        </div>
+      </header>
 
       {error && (
-        <p className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>
+        <Card className="border-red-200 bg-red-50 text-red-700">
+          <CardContent className="p-4 flex items-center gap-2 text-sm">
+            ⚠️ {error}
+          </CardContent>
+        </Card>
       )}
-      <h1 className="text-2xl font-bold mb-6 text-gray-800">Mis Alquileres / Expensas</h1>
 
-      <div className="grid gap-6">
+      {verHistorial ? (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <section>
+            <div className="flex items-center gap-2 mb-4 px-2">
+              <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
+                <Building2 className="size-5" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-800">Historial de Contratos</h2>
+            </div>
+            
+            <Card className="overflow-hidden border-gray-200 shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-gray-50/50 border-b">
+                    <tr>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-[11px]">Edificio / Unidad</th>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-[11px]">Monto</th>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-[11px]">Vencimiento</th>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-[11px]">Periodo</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {historialContratos.length === 0 ? (
+                      <tr><td colSpan={4} className="px-6 py-12 text-center text-gray-400 font-medium italic">No hay historial de contratos registrado todavía.</td></tr>
+                    ) : (
+                      historialContratos.map((hc) => (
+                        <tr key={hc.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-6 py-4">
+                            <p className="font-extrabold text-gray-900">{hc.unidad?.edificio?.nombre}</p>
+                            <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                              <span className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px] font-bold text-gray-600">
+                                {hc.unidad?.piso} {hc.unidad?.nombre}
+                              </span>
+                            </p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="font-bold text-gray-900">${hc.montoAlquiler.toLocaleString('es-AR')}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <Badge variant="outline" className="font-medium bg-white">
+                              <Calendar className="size-3 mr-1 text-gray-400" />
+                              {hc.vencimientoContrato || "No especificado"}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-xs font-semibold text-gray-600 bg-slate-100 inline-flex px-3 py-1 rounded-full">
+                              {new Date(hc.fechaInicio).toLocaleDateString('es-AR')} → {hc.fechaFin ? new Date(hc.fechaFin).toLocaleDateString('es-AR') : <span className="text-green-600 ml-1">Vigente</span>}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </section>
+
+          <section>
+            <div className="flex items-center gap-2 mb-4 px-2">
+              <div className="p-2 bg-green-100 rounded-lg text-green-600">
+                <CreditCard className="size-5" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-800">Historial de Pagos</h2>
+            </div>
+
+            <Card className="overflow-hidden border-gray-200 shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-gray-50/50 border-b">
+                    <tr>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-[11px]">Fecha y Edificio</th>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-[11px]">Monto</th>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-[11px]">Método</th>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-[11px]">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {historialPagos.length === 0 ? (
+                      <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-400 font-medium italic">No se han realizado pagos todavía.</td></tr>
+                    ) : (
+                      historialPagos.map((p) => (
+                        <tr key={p.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-6 py-4">
+                            <p className="font-bold text-gray-900">{p.unidad?.edificio?.nombre}</p>
+                            <p className="text-[10px] text-gray-400 font-medium uppercase mt-0.5">
+                              {new Date(p.fechaPago).toLocaleString('es-AR', { dateStyle: 'medium', timeStyle: 'short' })}
+                            </p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-lg font-black text-gray-900">${p.monto.toLocaleString('es-AR')}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2 text-gray-600">
+                              {p.metodo === 'TARJETA' ? <CreditCard className="size-4" /> : <Banknote className="size-4" />}
+                              <span className="text-xs font-bold">{p.metodo}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <Badge className={`rounded-full px-3 py-0.5 text-[10px] font-black uppercase tracking-widest ${p.estado === 'PAGADO' ? 'bg-green-500/10 text-green-600 hover:bg-green-500/20 border-green-200' : 'bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 border-orange-200'}`} variant="outline">
+                              {p.estado}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </section>
+        </div>
+      ) : (
+        <div className="grid gap-6">
         {edificios.map((e) => {
           const detallePago = calcularDetallePago(e);
 
@@ -477,6 +641,7 @@ export default function InquilinoEdificios() {
           </div>
         )})}
       </div>
+    )}
     </div>
   );
 }

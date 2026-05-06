@@ -18,6 +18,7 @@ export interface UserSummary {
 
 export interface Tenant {
   id: string;
+  userId?: number;
   buildingId: string;
   firstName: string;
   lastName: string;

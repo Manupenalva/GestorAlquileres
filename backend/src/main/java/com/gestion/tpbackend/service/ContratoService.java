@@ -97,6 +97,10 @@ public class ContratoService {
         return contratoRepository.findByInquilinoId(inquilino.getId());
     }
 
+    public List<Contrato> obtenerPorInquilinoId(Long id) {
+        return contratoRepository.findByInquilinoId(id);
+    }
+
     public List<Contrato> obtenerPorEdificio(Long edificioId) {
         return contratoRepository.findByUnidadEdificioId(edificioId);
     }

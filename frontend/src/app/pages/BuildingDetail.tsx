@@ -8,6 +8,7 @@ import { Input } from '../components/ui/input';
 import { AddTenantForm } from '../components/AddTenantForm';
 import { AddExpenseForm } from '../components/AddExpenseForm';
 import { RegisterPaymentDialog } from '../components/RegisterPaymentDialog';
+import { TenantHistoryDialog } from '../components/TenantHistoryDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -319,6 +320,10 @@ export function BuildingDetail({
                         </div>
                         
                         <div className="flex flex-col gap-2">
+                          <TenantHistoryDialog
+                            tenantId={tenant.userId || 0}
+                            tenantName={`${tenant.firstName} ${tenant.lastName}`}
+                          />
                           <RegisterPaymentDialog
                             tenantId={tenant.id}
                             tenantName={`${tenant.firstName} ${tenant.lastName}`}

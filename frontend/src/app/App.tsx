@@ -84,6 +84,7 @@ export default function App() {
           .filter((unit: any) => unit.inquilino)
           .map((unit: any) => ({
             id: String(unit.id),
+            userId: unit.inquilino.id,
             buildingId: unit.edificio ? String(unit.edificio.id) : '',
             firstName: unit.inquilino.nombre,
             lastName: '',
