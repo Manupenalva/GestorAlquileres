@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { RouterProvider } from 'react-router';
 import { createRouter } from './routes.tsx';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { Building, Tenant, Expense, Payment, UserSummary, NewExpenseInput } from './types';
 import { Toaster } from './components/ui/sonner';
+import { DashboardProvider } from './context/DashboardContext';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
 
@@ -28,6 +29,9 @@ export default function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [payments, setPayments] = useLocalStorage<Payment[]>('payments', []);
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('auth_token'));
+
+  const user = useMemo(() => getAuthUser(), [isAuthenticated]);
+  const isAdmin = user?.rol === 'ADMIN';
 
   const loadAllTenants = useCallback(async () => {
     try {
@@ -133,17 +137,16 @@ export default function App() {
   }, [loadAllTenants, loadExpenses, loadAllPayments]);
 
   useEffect(() => {
-    // Check authentication status every second to handle login/logout from other components
-    // A better way would be an event bus or context, but this is a quick fix for the current structure
     const interval = setInterval(() => {
       const token = !!localStorage.getItem('auth_token');
-      if (token !== isAuthenticated) {
-        setIsAuthenticated(token);
-      }
+      setIsAuthenticated((prev) => {
+        if (token !== prev) return token;
+        return prev;
+      });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isAuthenticated]);
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -157,7 +160,7 @@ export default function App() {
     }
   }, [isAuthenticated, loadBuildings]);
 
-  const handleAddBuilding = async (buildingData: Omit<Building, 'id'>) => {
+  const handleAddBuilding = useCallback(async (buildingData: Omit<Building, 'id'>) => {
     const authUser = getAuthUser();
 
     if (!authUser?.id) {
@@ -185,9 +188,9 @@ export default function App() {
 
     await response.json();
     await loadBuildings();
-  };
+  }, [loadBuildings]);
 
-  const handleDeleteBuilding = async (buildingId: number) => {
+  const handleDeleteBuilding = useCallback(async (buildingId: number) => {
     const response = await fetch(`${API_BASE}/api/edificios/${buildingId}`, {
       method: 'DELETE',
     });
@@ -213,9 +216,9 @@ export default function App() {
     loadBuildings().catch((error) => {
       console.error(error);
     });
-  };
+  }, [loadBuildings, setPayments]);
 
-  const handleAddTenant = async (tenantData: Omit<Tenant, 'id'>) => {
+  const handleAddTenant = useCallback(async (tenantData: Omit<Tenant, 'id'>) => {
     const response = await fetch(`${API_BASE}/api/unidades/asignar-por-email`, {
       method: 'POST',
       headers: {
@@ -239,9 +242,9 @@ export default function App() {
     }
 
     await loadBuildings();
-  };
+  }, [loadBuildings]);
 
-  const handleRemoveTenant = async (tenantId: string) => {
+  const handleRemoveTenant = useCallback(async (tenantId: string) => {
     const response = await fetch(`${API_BASE}/api/unidades/${tenantId}/inquilino`, {
       method: 'DELETE',
     });
@@ -251,9 +254,9 @@ export default function App() {
     }
 
     await loadBuildings();
-  };
+  }, [loadBuildings]);
 
-  const handleAddExpense = async (expenseData: NewExpenseInput) => {
+  const handleAddExpense = useCallback(async (expenseData: NewExpenseInput) => {
     const formData = new FormData();
     formData.append('type', expenseData.type);
     formData.append('amount', String(expenseData.amount));
@@ -284,9 +287,9 @@ export default function App() {
 
     setExpenses((currentExpenses: Expense[]) => [normalizedExpense, ...currentExpenses]);
     await loadBuildings();
-  };
+  }, [loadBuildings]);
 
-  const handleRegisterPayment = async (paymentData: Omit<Payment, 'id' | 'date'>) => {
+  const handleRegisterPayment = useCallback(async (paymentData: Omit<Payment, 'id' | 'date'>) => {
     const pagosRes = await fetch(`${API_BASE}/api/pagos/edificio/${paymentData.buildingId}`);
     if (!pagosRes.ok) {
       throw new Error('No se pudieron obtener los pagos del edificio');
@@ -310,9 +313,9 @@ export default function App() {
     }
 
     await loadAllPayments();
-  };
+  }, [loadAllPayments]);
 
-  const router = createRouter({
+  const router = useMemo(() => createRouter({
     buildings,
     buildingsLoading,
     tenants,
@@ -324,12 +327,35 @@ export default function App() {
     onRemoveTenant: handleRemoveTenant,
     onAddExpense: handleAddExpense,
     onRegisterPayment: handleRegisterPayment,
-  });
+  }), [
+    buildings,
+    buildingsLoading,
+    tenants,
+    expenses,
+    payments,
+    handleAddBuilding,
+    handleDeleteBuilding,
+    handleAddTenant,
+    handleRemoveTenant,
+    handleAddExpense,
+    handleRegisterPayment,
+  ]);
 
-  return (
+  const appContent = (
     <>
       <RouterProvider router={router} />
       <Toaster />
     </>
   );
+
+  return isAdmin ? (
+    <DashboardProvider 
+      buildings={buildings} 
+      tenants={tenants} 
+      expenses={expenses} 
+      payments={payments}
+    >
+      {appContent}
+    </DashboardProvider>
+  ) : appContent;
 }
