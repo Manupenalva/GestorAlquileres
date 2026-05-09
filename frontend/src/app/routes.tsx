@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router";
+import { createBrowserRouter, Navigate } from "react-router";
 import { Root } from "./Root";
 import { Home } from "./pages/Home";
 import { BuildingDetail } from "./pages/BuildingDetail";
@@ -48,6 +48,10 @@ export const createRouter = (props: any) => createBrowserRouter([
           },
         ]
       },
+      {
+        path: "*",
+        element: <Navigate to="/" replace />
+      }
     ],
   },
 ]);

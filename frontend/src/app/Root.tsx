@@ -21,7 +21,11 @@ export function Root({ onAddBuilding }: any) {
     navigate('/login');
   };
 
-  return (
+    const userStr = localStorage.getItem('auth_user');
+    const user = userStr ? JSON.parse(userStr) : null;
+    const isAdmin = user?.rol === 'ADMIN';
+
+    return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -46,7 +50,7 @@ export function Root({ onAddBuilding }: any) {
                 Cerrar sesion
               </Button>
             )}
-            {isHome && <AddBuildingForm onAdd={onAddBuilding} />}
+            {isHome && isLoggedIn && isAdmin && <AddBuildingForm onAdd={onAddBuilding} />}
           </div>
         </div>
       </header>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { RouterProvider } from 'react-router';
 import { createRouter } from './routes.tsx';
 import { useLocalStorage } from './hooks/useLocalStorage';
@@ -27,55 +27,9 @@ export default function App() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [payments, setPayments] = useLocalStorage<Payment[]>('payments', []);
+  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('auth_token'));
 
-  const loadBuildings = async (signal?: AbortSignal) => {
-    setBuildingsLoading(true);
-
-    try {
-      const response = await fetch(`${API_BASE}/api/edificios`, {
-        signal,
-      });
-
-      if (!response.ok) {
-        throw new Error('No se pudieron cargar los edificios');
-      }
-
-      const data = await response.json();
-      setBuildings(Array.isArray(data) ? data : []);
-      
-      await Promise.all([loadAllTenants(), loadExpenses()]);
-      loadAllTenants();
-      loadAllPayments();
-    } finally {
-      setBuildingsLoading(false);
-    }
-  };
-
-  const loadExpenses = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/gastos`);
-      if (!response.ok) {
-        return;
-      }
-
-      const data = await response.json();
-      const allExpenses: Expense[] = (Array.isArray(data) ? data : []).map((item: any) => ({
-        id: item.id,
-        buildingId: String(item.buildingId),
-        type: item.type,
-        amount: item.amount,
-        description: item.description || '',
-        date: item.date,
-        receiptFileName: item.receiptFileName,
-        receiptUrl: item.receiptUrl,
-      }));
-      setExpenses(allExpenses);
-    } catch (error) {
-      console.error('Error loading expenses:', error);
-    }
-  };
-
-  const loadAllTenants = async () => {
+  const loadAllTenants = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/api/unidades`);
       if (response.ok) {
@@ -102,9 +56,33 @@ export default function App() {
     } catch (error) {
       console.error('Error loading tenants:', error);
     }
-  };
+  }, []);
 
-  const loadAllPayments = async () => {
+  const loadExpenses = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/gastos`);
+      if (!response.ok) {
+        return;
+      }
+
+      const data = await response.json();
+      const allExpenses: Expense[] = (Array.isArray(data) ? data : []).map((item: any) => ({
+        id: item.id,
+        buildingId: String(item.buildingId),
+        type: item.type,
+        amount: item.amount,
+        description: item.description || '',
+        date: item.date,
+        receiptFileName: item.receiptFileName,
+        receiptUrl: item.receiptUrl,
+      }));
+      setExpenses(allExpenses);
+    } catch (error) {
+      console.error('Error loading expenses:', error);
+    }
+  }, []);
+
+  const loadAllPayments = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/api/pagos`);
       if (response.ok) {
@@ -123,21 +101,61 @@ export default function App() {
     } catch (error) {
       console.error('Error loading payments:', error);
     }
-  };
+  }, [setPayments]);
 
-  useEffect(() => {
-    const controller = new AbortController();
+  const loadBuildings = useCallback(async (signal?: AbortSignal) => {
+    if (!localStorage.getItem('auth_token')) return;
+    
+    setBuildingsLoading(true);
 
-    loadBuildings(controller.signal).catch((error) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/edificios`, {
+        signal,
+      });
+
+      if (!response.ok) {
+        throw new Error('No se pudieron cargar los edificios');
+      }
+
+      const data = await response.json();
+      setBuildings(Array.isArray(data) ? data : []);
+      
+      await Promise.all([loadAllTenants(), loadExpenses()]);
+      loadAllPayments();
+    } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         return;
       }
-
       console.error(error);
-    });
+    } finally {
+      setBuildingsLoading(false);
+    }
+  }, [loadAllTenants, loadExpenses, loadAllPayments]);
 
-    return () => controller.abort();
-  }, []);
+  useEffect(() => {
+    // Check authentication status every second to handle login/logout from other components
+    // A better way would be an event bus or context, but this is a quick fix for the current structure
+    const interval = setInterval(() => {
+      const token = !!localStorage.getItem('auth_token');
+      if (token !== isAuthenticated) {
+        setIsAuthenticated(token);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      const controller = new AbortController();
+      loadBuildings(controller.signal);
+      return () => controller.abort();
+    } else {
+      setBuildings([]);
+      setTenants([]);
+      setExpenses([]);
+    }
+  }, [isAuthenticated, loadBuildings]);
 
   const handleAddBuilding = async (buildingData: Omit<Building, 'id'>) => {
     const authUser = getAuthUser();
@@ -269,7 +287,6 @@ export default function App() {
   };
 
   const handleRegisterPayment = async (paymentData: Omit<Payment, 'id' | 'date'>) => {
-    // Buscar el contrato PENDIENTE de este inquilino para confirmarlo en el backend
     const pagosRes = await fetch(`${API_BASE}/api/pagos/edificio/${paymentData.buildingId}`);
     if (!pagosRes.ok) {
       throw new Error('No se pudieron obtener los pagos del edificio');
@@ -292,7 +309,6 @@ export default function App() {
       throw new Error('No se pudo confirmar el pago en el servidor');
     }
 
-    // Recargar todos los pagos desde el backend para reflejar el nuevo estado
     await loadAllPayments();
   };
 
