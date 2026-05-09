@@ -177,7 +177,7 @@ export function DashboardOverlay() {
                       layout="vertical"
                       data={[
                         { name: 'Ocupadas', cantidad: metrics.occupiedUnits, fill: '#3b82f6' },
-                        { name: 'Disponibles', cantidad: metrics.totalUnits - metrics.occupiedUnits, fill: '#f1f5f9' }
+                        { name: 'Disponibles', cantidad: metrics.totalUnits - metrics.occupiedUnits, fill: '#cbd5e1' }
                       ]}
                       margin={{left: 0, right: 40}}
                     >
