@@ -556,7 +556,7 @@ export default function InquilinoEdificios() {
                     />
                     <div className="flex gap-2">
                       <button onClick={() => setEdificioExpandido(null)} className="flex-1 py-2 font-bold text-gray-500">Cancelar</button>
-                      <button onClick={() => confirmarAvisoEfectivo(e.id, e.expensasBase || 0)} disabled={procesando} className="flex-2 bg-orange-600 text-white py-2 px-6 rounded-xl font-bold disabled:opacity-50">
+                      <button onClick={() => confirmarAvisoEfectivo(e.id, detallePago.totalPagar)} disabled={procesando} className="flex-2 bg-orange-600 text-white py-2 px-6 rounded-xl font-bold disabled:opacity-50">
                         {procesando ? "Enviando..." : "Confirmar Aviso"}
                       </button>
                     </div>
@@ -564,7 +564,7 @@ export default function InquilinoEdificios() {
                 )}
 
                 {metodoSeleccionado === 'TARJETA' && (
-                  <form onSubmit={(ev) => { ev.preventDefault(); confirmarPagoTarjeta(e.id, e.expensasBase || 0); }} className="max-w-md mx-auto space-y-4">
+                  <form onSubmit={(ev) => { ev.preventDefault(); confirmarPagoTarjeta(e.id, detallePago.totalPagar); }} className="max-w-md mx-auto space-y-4">
                     <div className="grid grid-cols-1 gap-4">
                       <div>
                         <input 

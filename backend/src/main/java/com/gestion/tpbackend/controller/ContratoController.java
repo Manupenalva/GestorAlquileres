@@ -32,9 +32,6 @@ public class ContratoController {
         this.usuarioRepository = usuarioRepository;
     }
 
-    /**
-     * El inquilino consulta su historial de contratos (alquileres).
-     */
     @PreAuthorize("hasRole('INQ')")
     @GetMapping("/mis-contratos")
     public ResponseEntity<List<HistorialContrato>> misContratos(Authentication auth) {
@@ -43,9 +40,6 @@ public class ContratoController {
         return ResponseEntity.ok(historialContratoRepository.findByInquilinoId(inquilino.getId()));
     }
 
-    /**
-     * Admin consulta el historial de un inquilino especifico (pagos y contratos).
-     */
     @GetMapping("/inquilino/{inquilinoId}/historial")
     public ResponseEntity<HistorialCompletoResponse> historialInquilino(@PathVariable Long inquilinoId) {
         List<Contrato> pagos = contratoService.obtenerPorInquilinoId(inquilinoId);
@@ -55,10 +49,6 @@ public class ContratoController {
 
     public record HistorialCompletoResponse(List<Contrato> pagos, List<HistorialContrato> contratos) {}
 
-    /**
-     * El inquilino registra un pago.
-     * TARJETA → PAGADO | EFECTIVO → PENDIENTE
-     */
     @PreAuthorize("hasRole('INQ')")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -68,34 +58,22 @@ public class ContratoController {
         return contratoService.registrarPago(email, request.edificioId(), request.monto(), metodo, request.nota());
     }
 
-    /**
-     * El inquilino consulta su historial de pagos.
-     */
     @PreAuthorize("hasRole('INQ')")
     @GetMapping("/mis-pagos")
     public ResponseEntity<List<Contrato>> misPagos(Authentication auth) {
         return ResponseEntity.ok(contratoService.obtenerPorInquilino(auth.getName()));
     }
 
-    /**
-     * Admin/propietario consulta pagos por edificio.
-     */
     @GetMapping("/edificio/{edificioId}")
     public ResponseEntity<List<Contrato>> pagosPorEdificio(@PathVariable Long edificioId) {
         return ResponseEntity.ok(contratoService.obtenerPorEdificio(edificioId));
     }
 
-    /**
-     * Admin/propietario lista todos los pagos.
-     */
     @GetMapping
     public ResponseEntity<List<Contrato>> todos() {
         return ResponseEntity.ok(contratoService.obtenerTodos());
     }
 
-    /**
-     * Admin/propietario confirma un pago en efectivo (PENDIENTE → PAGADO).
-     */
     @PatchMapping("/{id}/confirmar")
     public ResponseEntity<Contrato> confirmar(@PathVariable Long id) {
         return ResponseEntity.ok(contratoService.marcarComoPagado(id));
