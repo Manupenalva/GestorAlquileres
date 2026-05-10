@@ -591,7 +591,6 @@ export default function InquilinoEdificios() {
                   <p className="text-[11px] text-slate-500 mt-1">
                     Alquiler ${detallePago.alquiler.toLocaleString('es-AR')} + Expensas ${detallePago.gastoExpensas.toLocaleString('es-AR')} + Deuda ${detallePago.gastoExtraProrrateado.toLocaleString('es-AR')}
                   </p>
-                  <p className="text-3xl font-black text-slate-900">${(e.expensasBase || 0).toLocaleString('es-AR')}</p>
                   <p className="mt-2 text-xs font-semibold text-slate-600">
                     Deuda pendiente: ${Math.max(0, deudasPorEdificio[e.id] || 0).toLocaleString('es-AR')}
                   </p>
