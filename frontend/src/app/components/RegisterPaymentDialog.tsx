@@ -71,7 +71,7 @@ export function RegisterPaymentDialog({
             Registrar Pago - {tenantName}
           </DialogTitle>
           <DialogDescription>
-            Confirmá el pago en efectivo del inquilino. Esto actualizará el estado en la base de datos.
+            Confirmá el pago en efectivo del inquilino. Podés registrar un monto parcial o total.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">

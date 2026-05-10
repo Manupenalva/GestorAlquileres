@@ -76,9 +76,11 @@ public class ContratoController {
     }
 
     @PatchMapping("/{id}/confirmar")
-    public ResponseEntity<Contrato> confirmar(@PathVariable Long id) {
-        return ResponseEntity.ok(contratoService.marcarComoPagado(id));
+    public ResponseEntity<Contrato> confirmar(@PathVariable Long id, @RequestBody(required = false) ConfirmarPagoRequest request) {
+        Double monto = request != null ? request.monto() : null;
+        return ResponseEntity.ok(contratoService.marcarComoPagado(id, monto));
     }
 
     public record PagoRequest(Long edificioId, Double monto, String metodo, String nota) {}
+    public record ConfirmarPagoRequest(Double monto) {}
 }

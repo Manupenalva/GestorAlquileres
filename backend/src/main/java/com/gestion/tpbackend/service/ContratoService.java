@@ -151,11 +151,22 @@ public class ContratoService {
     }
 
     @Transactional
-    public Contrato marcarComoPagado(Long contratoId) {
+    public Contrato marcarComoPagado(Long contratoId, Double montoOverride) {
         Contrato contrato = contratoRepository.findById(contratoId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Contrato no encontrado"));
 
         deudaService.asegurarDeudaBaseMensual(contrato.getUnidad(), YearMonth.now());
+
+        if (montoOverride != null) {
+            if (montoOverride <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El monto debe ser mayor a 0");
+            }
+            if (montoOverride - contrato.getMonto() > 0.00001) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El monto no puede superar el pago original");
+            }
+            contrato.setMonto(montoOverride);
+        }
+
         deudaService.aplicarPagoPendiente(contrato);
         Contrato contratoActualizado = contratoRepository.save(contrato);
 

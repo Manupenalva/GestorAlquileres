@@ -324,6 +324,8 @@ export default function App() {
 
     const confirmRes = await fetch(`${API_BASE}/api/pagos/${contratoPendiente.id}/confirmar`, {
       method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ monto: paymentData.amount }),
     });
     if (!confirmRes.ok) {
       throw new Error('No se pudo confirmar el pago en el servidor');
