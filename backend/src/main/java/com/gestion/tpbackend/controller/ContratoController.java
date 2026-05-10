@@ -40,7 +40,7 @@ public class ContratoController {
         return ResponseEntity.ok(historialContratoRepository.findByInquilinoId(inquilino.getId()));
     }
 
-    @PreAuthorize("hasRole('INQ')")
+    @PreAuthorize("hasAnyRole('INQ', 'ADMIN')")
     @GetMapping("/inquilino/{inquilinoId}/historial")
     public ResponseEntity<HistorialCompletoResponse> historialInquilino(@PathVariable Long inquilinoId) {
         List<Contrato> pagos = contratoService.obtenerPorInquilinoId(inquilinoId);
