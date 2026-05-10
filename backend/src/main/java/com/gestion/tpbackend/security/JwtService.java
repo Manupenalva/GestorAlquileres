@@ -5,6 +5,10 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.Map;
 import javax.crypto.SecretKey;
@@ -22,11 +26,26 @@ public class JwtService {
     private long jwtExpirationMs;
 
     public String generarToken(Usuario usuario) {
+
+        ZoneId zonaBsAs = ZoneId.of("America/Argentina/Buenos_Aires");
+        ZonedDateTime ahoraBsAs = ZonedDateTime.now(zonaBsAs);
+        Instant issuedAt = ahoraBsAs.toInstant();
+        Instant expiration = issuedAt.plusMillis(jwtExpirationMs);
+
+        System.out.println(issuedAt);
+        System.out.println(expiration);
+
+        Date issuedAtDate = Date.from(issuedAt);
+        Date expirationDate = Date.from(expiration);
+
+        System.out.println(issuedAtDate);
+        System.out.println(expirationDate);
+
         return Jwts.builder()
             .subject(usuario.getEmail())
             .claims(Map.of("rol", usuario.getRol().name()))
-            .issuedAt(new Date())
-            .expiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
+            .issuedAt(issuedAtDate)
+            .expiration(expirationDate)
             .signWith(obtenerLlaveFirma())
             .compact();
     }

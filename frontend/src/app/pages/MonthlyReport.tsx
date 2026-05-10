@@ -47,7 +47,7 @@ export function MonthlyReport({
       const [pYear, pMonth] = p.month.split('-');
       const yearMatch = pYear === selectedYear;
       const monthMatch = selectedMonth === "all" || pMonth === selectedMonth;
-      return p.buildingId === buildingId && yearMatch && monthMatch && p.isPaid;
+      return p.buildingId === buildingId && yearMatch && monthMatch && p.status !== 'PENDIENTE';
     });
 
     return { expensesFiltered, paymentsFiltered };

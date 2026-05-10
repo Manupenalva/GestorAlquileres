@@ -35,7 +35,9 @@ class DashboardService {
 
     // 2. Calculate Financials (All Time or Current Period - let's do All Time for global, or filtered by year)
     // For a dashboard, let's focus on the Current Year Trends
-    const totalRevenue = payments.filter(p => p.isPaid).reduce((sum, p) => sum + p.amount, 0);
+    const totalRevenue = payments
+      .filter(p => p.status !== 'PENDIENTE')
+      .reduce((sum, p) => sum + p.amount, 0);
     const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
     const netProfit = totalRevenue - totalExpenses;
 
@@ -75,7 +77,7 @@ class DashboardService {
       const monthStr = (i + 1).toString().padStart(2, '0');
       
       const monthlyRevenue = payments
-        .filter(p => p.isPaid && p.month === `${year}-${monthStr}`)
+        .filter(p => p.status !== 'PENDIENTE' && p.month === `${year}-${monthStr}`)
         .reduce((sum, p) => sum + p.amount, 0);
 
       const monthlyExpenses = expenses

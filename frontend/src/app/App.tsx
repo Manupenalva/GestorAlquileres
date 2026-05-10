@@ -91,16 +91,33 @@ export default function App() {
       const response = await fetch(`${API_BASE}/api/pagos`);
       if (response.ok) {
         const contratos = await response.json();
-        const backendPayments: Payment[] = contratos.map((c: any) => ({
-          id: String(c.id),
-          tenantId: String(c.unidad?.id ?? ''),
-          buildingId: String(c.unidad?.edificio?.id ?? ''),
-          amount: c.monto,
-          month: c.fechaPago ? c.fechaPago.slice(0, 7) : '',
-          date: c.fechaPago ?? '',
-          isPaid: c.estado === 'PAGADO',
-        }));
-        setPayments(backendPayments);
+        const normalizedPayments: Payment[] = contratos.map((c: any) => {
+          const estado = String(c.estado ?? '').toUpperCase();
+          const tipoAplicacion = String(c.tipoAplicacion ?? '').toUpperCase();
+          const remainingBalance = typeof c.saldoPendienteTotal === 'number' ? c.saldoPendienteTotal : undefined;
+
+          let status: Payment['status'] = 'PENDIENTE';
+          if (estado === 'PAGADO' && tipoAplicacion === 'PARCIAL') {
+            status = 'PARCIAL';
+          } else if (estado === 'PAGADO') {
+            status = 'PAGADO';
+          }
+
+          return {
+            id: String(c.id),
+            tenantId: String(c.unidad?.id ?? ''),
+            buildingId: String(c.unidad?.edificio?.id ?? ''),
+            amount: c.monto,
+            month: c.fechaPago ? c.fechaPago.slice(0, 7) : '',
+            date: c.fechaPago ?? '',
+            isPaid: status === 'PAGADO',
+            status,
+            remainingBalance,
+            applicationDetail: c.detalleAplicacion || undefined,
+          };
+        });
+
+        setPayments(normalizedPayments);
       }
     } catch (error) {
       console.error('Error loading payments:', error);

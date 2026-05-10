@@ -27,17 +27,20 @@ public class GastoService {
 
     private final GastoRepository gastoRepository;
     private final EdificioRepository edificioRepository;
+    private final DeudaService deudaService;
     private final Path receiptsBaseDir;
     private final long maxReceiptSizeBytes;
 
     public GastoService(
         GastoRepository gastoRepository,
         EdificioRepository edificioRepository,
+        DeudaService deudaService,
         @Value("${app.receipts.dir:uploads/receipts}") String receiptsDir,
         @Value("${app.receipts.max-size-bytes:5242880}") long maxReceiptSizeBytes
     ) {
         this.gastoRepository = gastoRepository;
         this.edificioRepository = edificioRepository;
+        this.deudaService = deudaService;
         this.receiptsBaseDir = Paths.get(receiptsDir).toAbsolutePath().normalize();
         this.maxReceiptSizeBytes = maxReceiptSizeBytes;
 
@@ -98,6 +101,13 @@ public class GastoService {
 
         Double gastoActual = edificio.getGastosExtra() != null ? edificio.getGastosExtra() : 0.0;
         edificio.setGastosExtra(gastoActual + monto);
+
+        deudaService.distribuirNuevoGastoExtra(
+            edificio,
+            monto,
+            StringUtils.hasText(descripcion) ? descripcion.trim() : null,
+            YearMonth.now()
+        );
 
         return gastoRepository.save(gasto);
     }

@@ -35,6 +35,25 @@ type GastoComprobante = {
   receiptFileName?: string;
 };
 
+type DeudaResponse = {
+  id: number;
+  edificioId?: number;
+  tipo: 'ALQUILER' | 'EXPENSAS_BASE' | 'GASTOS_EXTRA' | string;
+  periodo: string;
+  montoOriginal: number;
+  montoPagado: number;
+  montoPendiente: number;
+  estado: 'PENDIENTE' | 'PARCIAL' | 'PAGADO' | string;
+  descripcion?: string;
+};
+
+type DeudaResumenPorEdificio = {
+  ALQUILER: number;
+  EXPENSAS_BASE: number;
+  GASTOS_EXTRA: number;
+  total: number;
+};
+
 export default function InquilinoEdificios() {
   const [edificios, setEdificios] = useState<Edificio[]>([]);
   const [unidadesPorEdificio, setUnidadesPorEdificio] = useState<Record<number, UnidadInquilino>>({});
@@ -48,6 +67,9 @@ export default function InquilinoEdificios() {
   const [mesComprobantes, setMesComprobantes] = useState(new Date().toISOString().slice(0, 7));
   const [comprobantesPorEdificio, setComprobantesPorEdificio] = useState<Record<number, GastoComprobante[]>>({});
   const [cargandoComprobantes, setCargandoComprobantes] = useState(false);
+  const [deudasPorEdificio, setDeudasPorEdificio] = useState<Record<number, number>>({});
+  const [deudasDetallePorEdificio, setDeudasDetallePorEdificio] = useState<Record<number, DeudaResumenPorEdificio>>({});
+  const [deudaPendienteTotal, setDeudaPendienteTotal] = useState(0);
 
   const [notaEfectivo, setNotaEfectivo] = useState("");
   const [datosTarjeta, setDatosTarjeta] = useState({ numero: "", nombre: "", vencimiento: "", cvc: "" });
@@ -57,6 +79,9 @@ export default function InquilinoEdificios() {
   const [historialPagos, setHistorialPagos] = useState<any[]>([]);
   const [historialContratos, setHistorialContratos] = useState<any[]>([]);
   const [verHistorial, setVerHistorial] = useState(false);
+  // Selección de monto a pagar al abrir el panel
+  const [montoSeleccionTipo, setMontoSeleccionTipo] = useState<'TOTAL' | 'DEUDA' | 'OTRO'>('TOTAL');
+  const [montoCustom, setMontoCustom] = useState('');
 
   useEffect(() => {
     if (verHistorial) {
@@ -169,27 +194,98 @@ export default function InquilinoEdificios() {
     fetchComprobantes();
   }, [edificios, mesComprobantes]);
 
+  useEffect(() => {
+    const fetchDeudas = async () => {
+      const token = localStorage.getItem('auth_token');
+      if (!token || edificios.length === 0) {
+        setDeudasPorEdificio({});
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/api/deudas/mis-deudas`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!response.ok) {
+          setDeudasPorEdificio({});
+          return;
+        }
+
+        const deudas = (await response.json()) as DeudaResponse[];
+        const totalPendiente = deudas.reduce((sum, deuda) => {
+          const estado = String(deuda.estado).toUpperCase();
+          if (estado !== 'PENDIENTE' && estado !== 'PARCIAL') {
+            return sum;
+          }
+          return sum + (Number(deuda.montoPendiente) || 0);
+        }, 0);
+
+        const acumuladas = deudas.reduce((acc, deuda) => {
+          if (!deuda.edificioId) {
+            return acc;
+          }
+
+          const estado = String(deuda.estado).toUpperCase();
+          if (estado !== 'PENDIENTE' && estado !== 'PARCIAL') {
+            return acc;
+          }
+
+          acc[deuda.edificioId] = (acc[deuda.edificioId] || 0) + (Number(deuda.montoPendiente) || 0);
+          return acc;
+        }, {} as Record<number, number>);
+
+        const detalladas = deudas.reduce((acc, deuda) => {
+          if (!deuda.edificioId) {
+            return acc;
+          }
+
+          const estado = String(deuda.estado).toUpperCase();
+          if (estado !== 'PENDIENTE' && estado !== 'PARCIAL') {
+            return acc;
+          }
+
+          const tipo = String(deuda.tipo).toUpperCase();
+          if (!acc[deuda.edificioId]) {
+            acc[deuda.edificioId] = { ALQUILER: 0, EXPENSAS_BASE: 0, GASTOS_EXTRA: 0, total: 0 };
+          }
+
+          const monto = Number(deuda.montoPendiente) || 0;
+          if (tipo === 'ALQUILER') {
+            acc[deuda.edificioId].ALQUILER += monto;
+          } else if (tipo === 'EXPENSAS_BASE') {
+            acc[deuda.edificioId].EXPENSAS_BASE += monto;
+          } else if (tipo === 'GASTOS_EXTRA') {
+            acc[deuda.edificioId].GASTOS_EXTRA += monto;
+          }
+          acc[deuda.edificioId].total += monto;
+          return acc;
+        }, {} as Record<number, DeudaResumenPorEdificio>);
+
+        setDeudasPorEdificio(acumuladas);
+        setDeudasDetallePorEdificio(detalladas);
+        setDeudaPendienteTotal(totalPendiente);
+      } catch {
+        setDeudasPorEdificio({});
+        setDeudasDetallePorEdificio({});
+        setDeudaPendienteTotal(0);
+      }
+    };
+
+    fetchDeudas();
+  }, [edificios]);
+
   const toApiUrl = (path: string) => (path.startsWith('http') ? path : `${API_BASE}${path}`);
 
   const calcularDetallePago = (edificio: Edificio) => {
-    const unidad = unidadesPorEdificio[edificio.id];
-    const alquiler = unidad?.montoAlquiler || 0;
-    const porcentajeRaw = unidad?.porcentajeDepartamento || 0;
-    // Acepta 0.25 o 25 como entrada para evitar inconsistencias de carga histórica.
-    const porcentajeNormalizado = porcentajeRaw > 1 ? porcentajeRaw / 100 : porcentajeRaw;
-    const gastoExpensas = (edificio.expensasBase || 0) * porcentajeNormalizado;
-
-    const gastosExtra = edificio.gastosExtra || 0;
-    const divisor = (edificio.cantidadDepartamentos && edificio.cantidadDepartamentos > 0)
-      ? edificio.cantidadDepartamentos
-      : ((edificio.cantidadInquilinos && edificio.cantidadInquilinos > 0) ? edificio.cantidadInquilinos : 1);
-    const gastoExtraProrrateado = gastosExtra / divisor;
-
-    const totalPagar = alquiler + gastoExpensas + gastoExtraProrrateado;
+    const deudaDetalle = deudasDetallePorEdificio[edificio.id] || { ALQUILER: 0, EXPENSAS_BASE: 0, GASTOS_EXTRA: 0, total: 0 };
+    const alquiler = deudaDetalle.ALQUILER;
+    const gastoExpensas = deudaDetalle.EXPENSAS_BASE;
+    const gastoExtraProrrateado = deudaDetalle.GASTOS_EXTRA;
+    const totalPagar = deudaDetalle.total;
 
     return {
       alquiler,
-      porcentajeNormalizado,
       gastoExpensas,
       gastoExtraProrrateado,
       totalPagar,
@@ -205,6 +301,9 @@ export default function InquilinoEdificios() {
       setMetodoSeleccionado(metodo);
       setErrores({});
       setErrorGeneral(null); // Limpiar errores al cambiar
+      // Reset selección de monto al abrir panel
+      setMontoSeleccionTipo('TOTAL');
+      setMontoCustom('');
     }
   };
 
@@ -305,6 +404,14 @@ export default function InquilinoEdificios() {
             {verHistorial ? "Consulta tus contratos y pagos pasados" : "Gestiona tus unidades actuales y realiza pagos"}
           </p>
         </div>
+
+        {!verHistorial && (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-right shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Deuda pendiente total</p>
+            <p className="text-2xl font-black text-slate-900">${deudaPendienteTotal.toLocaleString('es-AR')}</p>
+            <p className="text-[11px] font-medium text-slate-500">Incluye pendientes y parciales</p>
+          </div>
+        )}
         
         <div className="flex flex-wrap items-center gap-3">
           <Button 
@@ -482,9 +589,12 @@ export default function InquilinoEdificios() {
                     ${detallePago.totalPagar.toLocaleString('es-AR')}
                   </p>
                   <p className="text-[11px] text-slate-500 mt-1">
-                    Alquiler ${detallePago.alquiler.toLocaleString('es-AR')} + Expensas ${detallePago.gastoExpensas.toLocaleString('es-AR')} + Extra ${detallePago.gastoExtraProrrateado.toLocaleString('es-AR')}
+                    Alquiler ${detallePago.alquiler.toLocaleString('es-AR')} + Expensas ${detallePago.gastoExpensas.toLocaleString('es-AR')} + Deuda ${detallePago.gastoExtraProrrateado.toLocaleString('es-AR')}
                   </p>
                   <p className="text-3xl font-black text-slate-900">${(e.expensasBase || 0).toLocaleString('es-AR')}</p>
+                  <p className="mt-2 text-xs font-semibold text-slate-600">
+                    Deuda pendiente: ${Math.max(0, deudasPorEdificio[e.id] || 0).toLocaleString('es-AR')}
+                  </p>
                 </div>
 
                 <div className="flex gap-2 w-full">
@@ -556,7 +666,10 @@ export default function InquilinoEdificios() {
                     />
                     <div className="flex gap-2">
                       <button onClick={() => setEdificioExpandido(null)} className="flex-1 py-2 font-bold text-gray-500">Cancelar</button>
-                      <button onClick={() => confirmarAvisoEfectivo(e.id, detallePago.totalPagar)} disabled={procesando} className="flex-2 bg-orange-600 text-white py-2 px-6 rounded-xl font-bold disabled:opacity-50">
+                      <button onClick={() => {
+                          const montoAEnviar = montoSeleccionTipo === 'TOTAL' ? detallePago.totalPagar : montoSeleccionTipo === 'DEUDA' ? Math.max(0, deudasPorEdificio[e.id] || 0) : Number(parseFloat(montoCustom) || 0);
+                          confirmarAvisoEfectivo(e.id, montoAEnviar);
+                        }} disabled={procesando} className="flex-2 bg-orange-600 text-white py-2 px-6 rounded-xl font-bold disabled:opacity-50">
                         {procesando ? "Enviando..." : "Confirmar Aviso"}
                       </button>
                     </div>
@@ -564,8 +677,30 @@ export default function InquilinoEdificios() {
                 )}
 
                 {metodoSeleccionado === 'TARJETA' && (
-                  <form onSubmit={(ev) => { ev.preventDefault(); confirmarPagoTarjeta(e.id, detallePago.totalPagar); }} className="max-w-md mx-auto space-y-4">
-                    <div className="grid grid-cols-1 gap-4">
+                      <form onSubmit={(ev) => { ev.preventDefault();
+                            const montoAEnviar = montoSeleccionTipo === 'TOTAL' ? detallePago.totalPagar : montoSeleccionTipo === 'DEUDA' ? Math.max(0, deudasPorEdificio[e.id] || 0) : Number(parseFloat(montoCustom) || 0);
+                            confirmarPagoTarjeta(e.id, montoAEnviar);
+                          }} className="max-w-md mx-auto space-y-4">
+                        <div className="space-y-2">
+                          <p className="text-xs font-bold text-gray-600">Seleccionar monto a pagar</p>
+                          <div className="flex gap-2">
+                            <button type="button" onClick={() => setMontoSeleccionTipo('TOTAL')} className={`px-3 py-1 rounded-lg text-sm font-bold ${montoSeleccionTipo === 'TOTAL' ? 'bg-blue-700 text-white' : 'bg-gray-100'}`}>
+                              Total a Pagar (${detallePago.totalPagar.toLocaleString('es-AR')})
+                            </button>
+                            <button type="button" onClick={() => setMontoSeleccionTipo('DEUDA')} className={`px-3 py-1 rounded-lg text-sm font-bold ${montoSeleccionTipo === 'DEUDA' ? 'bg-blue-700 text-white' : 'bg-gray-100'}`}>
+                              Deuda pendiente (${Math.max(0, deudasPorEdificio[e.id] || 0).toLocaleString('es-AR')})
+                            </button>
+                            <div className="flex items-center gap-2">
+                              <button type="button" onClick={() => setMontoSeleccionTipo('OTRO')} className={`px-3 py-1 rounded-lg text-sm font-bold ${montoSeleccionTipo === 'OTRO' ? 'bg-blue-700 text-white' : 'bg-gray-100'}`}>
+                                Otro monto
+                              </button>
+                              {montoSeleccionTipo === 'OTRO' && (
+                                <input type="number" step="0.01" min="0" value={montoCustom} onChange={(ev) => setMontoCustom(ev.target.value)} placeholder="0.00" className="w-28 p-2 border rounded-xl" />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-4">
                       <div>
                         <input 
                           type="text" placeholder="Número de Tarjeta (16 dígitos)"
@@ -614,7 +749,7 @@ export default function InquilinoEdificios() {
                       </div>
                     )}
 
-                    <button type="submit" disabled={procesando} className="w-full bg-blue-600 text-white py-3 rounded-xl font-extrabold shadow-lg shadow-blue-200 disabled:opacity-50 transition-transform active:scale-95">
+                    <button type="submit" disabled={procesando || (montoSeleccionTipo === 'OTRO' && (Number(parseFloat(montoCustom) || 0) <= 0))} className="w-full bg-blue-600 text-white py-3 rounded-xl font-extrabold shadow-lg shadow-blue-200 disabled:opacity-50 transition-transform active:scale-95">
                       {procesando ? "Procesando..." : "CONFIRMAR PAGO"}
                     </button>
                   </form>

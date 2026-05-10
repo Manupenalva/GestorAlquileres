@@ -59,4 +59,7 @@ export interface Payment {
   month: string; // formato: "YYYY-MM"
   date: string;
   isPaid: boolean;
+  status?: 'PENDIENTE' | 'PARCIAL' | 'PAGADO';
+  remainingBalance?: number;
+  applicationDetail?: string;
 }

@@ -39,8 +39,19 @@ public class Contrato {
     @Column(name = "fecha_pago", nullable = false)
     private LocalDateTime fechaPago;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tipo_aplicacion", nullable = false, length = 20)
+    private TipoAplicacion tipoAplicacion;
+
+    @Column(name = "saldo_pendiente_total")
+    private Double saldoPendienteTotal;
+
+    @Column(name = "detalle_aplicacion", length = 1000)
+    private String detalleAplicacion;
+
     public enum MetodoPago { TARJETA, EFECTIVO }
     public enum EstadoPago { PAGADO, PENDIENTE }
+    public enum TipoAplicacion { SIN_APLICAR, PARCIAL, TOTAL }
 
     public Contrato() {}
 
@@ -52,6 +63,9 @@ public class Contrato {
         this.estado = estado;
         this.nota = nota;
         this.fechaPago = LocalDateTime.now();
+        this.tipoAplicacion = TipoAplicacion.SIN_APLICAR;
+        this.saldoPendienteTotal = null;
+        this.detalleAplicacion = null;
     }
 
     public Long getId() { return id; }
@@ -76,4 +90,13 @@ public class Contrato {
 
     public LocalDateTime getFechaPago() { return fechaPago; }
     public void setFechaPago(LocalDateTime fechaPago) { this.fechaPago = fechaPago; }
+
+    public TipoAplicacion getTipoAplicacion() { return tipoAplicacion; }
+    public void setTipoAplicacion(TipoAplicacion tipoAplicacion) { this.tipoAplicacion = tipoAplicacion; }
+
+    public Double getSaldoPendienteTotal() { return saldoPendienteTotal; }
+    public void setSaldoPendienteTotal(Double saldoPendienteTotal) { this.saldoPendienteTotal = saldoPendienteTotal; }
+
+    public String getDetalleAplicacion() { return detalleAplicacion; }
+    public void setDetalleAplicacion(String detalleAplicacion) { this.detalleAplicacion = detalleAplicacion; }
 }

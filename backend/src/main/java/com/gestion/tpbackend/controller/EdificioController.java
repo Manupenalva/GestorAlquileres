@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
 @RequestMapping("/api/edificios")
@@ -81,7 +80,6 @@ public class EdificioController {
     public record AgregarGastoExtraRequest(Double monto) {
     }
 
-    @PreAuthorize("hasRole('INQ')")
     @GetMapping("/mis-edificios")
     public ResponseEntity<List<Edificio>> getMisEdificios(Authentication auth) {
         String email = auth.getName(); 
