@@ -8,6 +8,7 @@ import com.gestion.tpbackend.repository.EdificioRepository;
 import com.gestion.tpbackend.repository.HistorialContratoRepository;
 import com.gestion.tpbackend.repository.UnidadRepository;
 import com.gestion.tpbackend.repository.UsuarioRepository;
+import java.time.YearMonth;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -21,12 +22,20 @@ public class UnidadService {
     private final EdificioRepository edificioRepository;
     private final UsuarioRepository usuarioRepository;
     private final HistorialContratoRepository historialContratoRepository;
+    private final DeudaService deudaService;
 
-    public UnidadService(UnidadRepository unidadRepository, EdificioRepository edificioRepository, UsuarioRepository usuarioRepository, HistorialContratoRepository historialContratoRepository) {
+    public UnidadService(
+        UnidadRepository unidadRepository,
+        EdificioRepository edificioRepository,
+        UsuarioRepository usuarioRepository,
+        HistorialContratoRepository historialContratoRepository,
+        DeudaService deudaService
+    ) {
         this.unidadRepository = unidadRepository;
         this.edificioRepository = edificioRepository;
         this.usuarioRepository = usuarioRepository;
         this.historialContratoRepository = historialContratoRepository;
+        this.deudaService = deudaService;
     }
 
     public List<Unidad> obtenerTodas() {
@@ -59,6 +68,8 @@ public class UnidadService {
 
         unidad.setInquilino(inquilino);
         Unidad unidadGuardada = unidadRepository.save(unidad);
+
+        deudaService.asegurarDeudaBaseMensual(unidadGuardada, YearMonth.now());
         
         // Crear nuevo historial
         HistorialContrato historial = new HistorialContrato(unidad, inquilino, unidad.getMontoAlquiler() != null ? unidad.getMontoAlquiler() : 0.0, unidad.getVencimientoContrato(), java.time.LocalDateTime.now());
@@ -91,6 +102,8 @@ public class UnidadService {
         unidad.setVencimientoContrato(vencimientoContrato);
         
         Unidad unidadGuardada = unidadRepository.save(unidad);
+
+        deudaService.asegurarDeudaBaseMensual(unidadGuardada, YearMonth.now());
         
         // Crear nuevo historial
         HistorialContrato historial = new HistorialContrato(unidad, inquilino, montoAlquiler, vencimientoContrato, java.time.LocalDateTime.now());
