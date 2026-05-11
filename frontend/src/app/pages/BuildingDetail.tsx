@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router';
 import { Building, Tenant, Payment, NewExpenseInput} from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -64,7 +64,7 @@ export function BuildingDetail({
   
   const building = buildings.find(b => String(b.id) === id);
   const buildingId = building ? String(building.id) : id ?? '';
-  const buildingTenants = tenants.filter(t => t.buildingId === buildingId);
+  const buildingTenants = useMemo(() => tenants.filter(t => t.buildingId === buildingId), [tenants, buildingId]);
   
   const normalizedTenantSearch = tenantSearch.trim().toLowerCase();
   const filteredTenants = buildingTenants.filter((tenant) => {
