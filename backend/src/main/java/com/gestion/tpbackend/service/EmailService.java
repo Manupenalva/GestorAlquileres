@@ -7,6 +7,10 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import com.gestion.tpbackend.entity.Contrato.MetodoPago;
 import com.gestion.tpbackend.entity.Unidad;
+import com.gestion.tpbackend.entity.Contrato;
+import com.gestion.tpbackend.entity.Contrato.TipoAplicacion;
+import com.gestion.tpbackend.entity.Contrato.EstadoPago;
+import com.gestion.tpbackend.scheduler.RecordatorioPagoScheduler;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -167,5 +171,39 @@ public class EmailService {
         message.setSubject(subject);
         message.setText(text.toString());
         mailSender.send(message);
+    }
+
+    public void enviarRecordatorio(String email, String nombre, Double deudaPendiente, Unidad unidad, String tiempoRestante) {
+        String subject = "Recordatorio de pago - Vence en " + tiempoRestante;
+        StringBuilder text = new StringBuilder();
+
+        text.append("Hola ").append(nombre).append(",\n\n");
+        text.append("Te recordamos que tu pago vence en ").append(tiempoRestante).append(".\n\n");
+        text.append("--- Detalle ---\n");
+        text.append("Edificio: ").append(unidad.getEdificio().getNombre()).append("\n");
+        text.append("Dirección: ").append(unidad.getEdificio().getDireccion()).append("\n");
+        text.append("Piso/Unidad: ").append(unidad.getPiso()).append("\n");
+        text.append("Monto pendiente: $").append(deudaPendiente).append("\n\n");
+        text.append("Podés abonar desde: ").append(frontendUrl).append("/mis-edificios\n");
+        text.append("\nPor favor, realizá el pago antes del vencimiento.");
+
+        enviar(email, subject, text.toString());
+    }
+
+    public void enviarRecordatorioUltimodia(String email, String nombre, Double deudaPendiente, Unidad unidad) {
+        String subject = "⚠️ Último día para pagar - Vence hoy";
+        StringBuilder text = new StringBuilder();
+
+        text.append("Hola ").append(nombre).append(",\n\n");
+        text.append("HOY es el último día para realizar tu pago del mes.\n\n");
+        text.append("--- Detalle ---\n");
+        text.append("Edificio: ").append(unidad.getEdificio().getNombre()).append("\n");
+        text.append("Dirección: ").append(unidad.getEdificio().getDireccion()).append("\n");
+        text.append("Piso/Unidad: ").append(unidad.getPiso()).append("\n");
+        text.append("Monto pendiente: $").append(deudaPendiente).append("\n\n");
+        text.append("Aboná ahora: ").append(frontendUrl).append("/mis-edificios\n");
+        text.append("\nEvitá inconvenientes realizando el pago hoy.");
+
+        enviar(email, subject, text.toString());
     }
 }
