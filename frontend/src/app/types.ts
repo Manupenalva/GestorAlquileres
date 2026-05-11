@@ -30,6 +30,7 @@ export interface Tenant {
   paymentDayOfMonth: number;
   rentAmount: number;
   departmentPercentage: number;
+  activo?: boolean; 
 }
 
 export interface Expense {
