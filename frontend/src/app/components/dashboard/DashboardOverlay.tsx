@@ -11,7 +11,7 @@ export function DashboardOverlay() {
 
   return (
     <Dialog open={isExpanded} onOpenChange={setIsExpanded}>
-      <DialogContent className="max-w-[98vw] 2xl:max-w-screen-2xl w-[98vw] max-h-[96vh] overflow-y-auto p-0 gap-0 border-none shadow-2xl">
+      <DialogContent className="!max-w-[90vw] w-[90vw] max-h-[96vh] overflow-y-auto p-0 gap-0 border-none shadow-2xl">
         <div className="bg-slate-50/50 p-4 md:p-10 border-b">
           <DialogHeader className="max-w-(--breakpoint-xl) mx-auto">
             <div className="flex items-center gap-4 mb-2">
@@ -28,9 +28,9 @@ export function DashboardOverlay() {
           </DialogHeader>
         </div>
 
-        <div className="p-4 md:p-10 space-y-10 bg-white max-w-(--breakpoint-2xl) mx-auto w-full">
+        <div className="p-4 md:p-6 space-y-6 bg-white w-full">
           {/* Main Metrics Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
               <MetricCard 
                 title="Ingresos Totales" 
                 value={metrics.totalRevenue} 
@@ -273,7 +273,7 @@ function MetricCard({ title, value, sub, icon, trend, color }: any) {
                 </div>
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">{title}</p>
-                    <h3 className={`text-3xl font-bold tracking-tight ${config.text}`}>
+                    <h3 className={`text-2xl font-bold tracking-tight ${config.text}`}>
                         {typeof value === 'number' ? `$${value.toLocaleString()}` : value}
                     </h3>
                     <p className="text-[10px] text-slate-500 mt-2 font-medium flex items-center gap-1">
