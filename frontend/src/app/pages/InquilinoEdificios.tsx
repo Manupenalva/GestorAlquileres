@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
+import { History, ArrowLeft, CreditCard, Banknote, Calendar, Building2 } from "lucide-react";
+import { Button } from "../components/ui/button";
+import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/card";
+import { Badge } from "../components/ui/badge";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
 
@@ -31,6 +35,25 @@ type GastoComprobante = {
   receiptFileName?: string;
 };
 
+type DeudaResponse = {
+  id: number;
+  edificioId?: number;
+  tipo: 'ALQUILER' | 'EXPENSAS_BASE' | 'GASTOS_EXTRA' | string;
+  periodo: string;
+  montoOriginal: number;
+  montoPagado: number;
+  montoPendiente: number;
+  estado: 'PENDIENTE' | 'PARCIAL' | 'PAGADO' | string;
+  descripcion?: string;
+};
+
+type DeudaResumenPorEdificio = {
+  ALQUILER: number;
+  EXPENSAS_BASE: number;
+  GASTOS_EXTRA: number;
+  total: number;
+};
+
 export default function InquilinoEdificios() {
   const [edificios, setEdificios] = useState<Edificio[]>([]);
   const [unidadesPorEdificio, setUnidadesPorEdificio] = useState<Record<number, UnidadInquilino>>({});
@@ -44,12 +67,38 @@ export default function InquilinoEdificios() {
   const [mesComprobantes, setMesComprobantes] = useState(new Date().toISOString().slice(0, 7));
   const [comprobantesPorEdificio, setComprobantesPorEdificio] = useState<Record<number, GastoComprobante[]>>({});
   const [cargandoComprobantes, setCargandoComprobantes] = useState(false);
+  const [deudasPorEdificio, setDeudasPorEdificio] = useState<Record<number, number>>({});
+  const [deudasDetallePorEdificio, setDeudasDetallePorEdificio] = useState<Record<number, DeudaResumenPorEdificio>>({});
+  const [deudaPendienteTotal, setDeudaPendienteTotal] = useState(0);
 
   const [notaEfectivo, setNotaEfectivo] = useState("");
   const [datosTarjeta, setDatosTarjeta] = useState({ numero: "", nombre: "", vencimiento: "", cvc: "" });
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null); // Nuevo estado
   const [pagoResultado, setPagoResultado] = useState<{ edificioId: number; estado: 'PAGADO' | 'PENDIENTE'; mensaje: string } | null>(null);
+  const [historialPagos, setHistorialPagos] = useState<any[]>([]);
+  const [historialContratos, setHistorialContratos] = useState<any[]>([]);
+  const [verHistorial, setVerHistorial] = useState(false);
+  // Selección de monto a pagar al abrir el panel
+  const [montoSeleccionTipo, setMontoSeleccionTipo] = useState<'TOTAL' | 'DEUDA' | 'OTRO'>('TOTAL');
+  const [montoCustom, setMontoCustom] = useState('');
+
+  useEffect(() => {
+    if (verHistorial) {
+      const fetchHistorial = async () => {
+        const token = localStorage.getItem("auth_token");
+        try {
+          const [pagosRes, contratosRes] = await Promise.all([
+            fetch(`${API_BASE}/api/pagos/mis-pagos`, { headers: { Authorization: `Bearer ${token}` } }),
+            fetch(`${API_BASE}/api/pagos/mis-contratos`, { headers: { Authorization: `Bearer ${token}` } })
+          ]);
+          if (pagosRes.ok) setHistorialPagos(await pagosRes.json());
+          if (contratosRes.ok) setHistorialContratos(await contratosRes.json());
+        } catch (err) { console.error("Error al cargar historial", err); }
+      };
+      fetchHistorial();
+    }
+  }, [verHistorial]);
 
   useEffect(() => {
     const fetchEdificios = async () => {
@@ -145,27 +194,98 @@ export default function InquilinoEdificios() {
     fetchComprobantes();
   }, [edificios, mesComprobantes]);
 
+  useEffect(() => {
+    const fetchDeudas = async () => {
+      const token = localStorage.getItem('auth_token');
+      if (!token || edificios.length === 0) {
+        setDeudasPorEdificio({});
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/api/deudas/mis-deudas`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!response.ok) {
+          setDeudasPorEdificio({});
+          return;
+        }
+
+        const deudas = (await response.json()) as DeudaResponse[];
+        const totalPendiente = deudas.reduce((sum, deuda) => {
+          const estado = String(deuda.estado).toUpperCase();
+          if (estado !== 'PENDIENTE' && estado !== 'PARCIAL') {
+            return sum;
+          }
+          return sum + (Number(deuda.montoPendiente) || 0);
+        }, 0);
+
+        const acumuladas = deudas.reduce((acc, deuda) => {
+          if (!deuda.edificioId) {
+            return acc;
+          }
+
+          const estado = String(deuda.estado).toUpperCase();
+          if (estado !== 'PENDIENTE' && estado !== 'PARCIAL') {
+            return acc;
+          }
+
+          acc[deuda.edificioId] = (acc[deuda.edificioId] || 0) + (Number(deuda.montoPendiente) || 0);
+          return acc;
+        }, {} as Record<number, number>);
+
+        const detalladas = deudas.reduce((acc, deuda) => {
+          if (!deuda.edificioId) {
+            return acc;
+          }
+
+          const estado = String(deuda.estado).toUpperCase();
+          if (estado !== 'PENDIENTE' && estado !== 'PARCIAL') {
+            return acc;
+          }
+
+          const tipo = String(deuda.tipo).toUpperCase();
+          if (!acc[deuda.edificioId]) {
+            acc[deuda.edificioId] = { ALQUILER: 0, EXPENSAS_BASE: 0, GASTOS_EXTRA: 0, total: 0 };
+          }
+
+          const monto = Number(deuda.montoPendiente) || 0;
+          if (tipo === 'ALQUILER') {
+            acc[deuda.edificioId].ALQUILER += monto;
+          } else if (tipo === 'EXPENSAS_BASE') {
+            acc[deuda.edificioId].EXPENSAS_BASE += monto;
+          } else if (tipo === 'GASTOS_EXTRA') {
+            acc[deuda.edificioId].GASTOS_EXTRA += monto;
+          }
+          acc[deuda.edificioId].total += monto;
+          return acc;
+        }, {} as Record<number, DeudaResumenPorEdificio>);
+
+        setDeudasPorEdificio(acumuladas);
+        setDeudasDetallePorEdificio(detalladas);
+        setDeudaPendienteTotal(totalPendiente);
+      } catch {
+        setDeudasPorEdificio({});
+        setDeudasDetallePorEdificio({});
+        setDeudaPendienteTotal(0);
+      }
+    };
+
+    fetchDeudas();
+  }, [edificios]);
+
   const toApiUrl = (path: string) => (path.startsWith('http') ? path : `${API_BASE}${path}`);
 
   const calcularDetallePago = (edificio: Edificio) => {
-    const unidad = unidadesPorEdificio[edificio.id];
-    const alquiler = unidad?.montoAlquiler || 0;
-    const porcentajeRaw = unidad?.porcentajeDepartamento || 0;
-    // Acepta 0.25 o 25 como entrada para evitar inconsistencias de carga histórica.
-    const porcentajeNormalizado = porcentajeRaw > 1 ? porcentajeRaw / 100 : porcentajeRaw;
-    const gastoExpensas = (edificio.expensasBase || 0) * porcentajeNormalizado;
-
-    const gastosExtra = edificio.gastosExtra || 0;
-    const divisor = (edificio.cantidadDepartamentos && edificio.cantidadDepartamentos > 0)
-      ? edificio.cantidadDepartamentos
-      : ((edificio.cantidadInquilinos && edificio.cantidadInquilinos > 0) ? edificio.cantidadInquilinos : 1);
-    const gastoExtraProrrateado = gastosExtra / divisor;
-
-    const totalPagar = alquiler + gastoExpensas + gastoExtraProrrateado;
+    const deudaDetalle = deudasDetallePorEdificio[edificio.id] || { ALQUILER: 0, EXPENSAS_BASE: 0, GASTOS_EXTRA: 0, total: 0 };
+    const alquiler = deudaDetalle.ALQUILER;
+    const gastoExpensas = deudaDetalle.EXPENSAS_BASE;
+    const gastoExtraProrrateado = deudaDetalle.GASTOS_EXTRA;
+    const totalPagar = deudaDetalle.total;
 
     return {
       alquiler,
-      porcentajeNormalizado,
       gastoExpensas,
       gastoExtraProrrateado,
       totalPagar,
@@ -181,6 +301,9 @@ export default function InquilinoEdificios() {
       setMetodoSeleccionado(metodo);
       setErrores({});
       setErrorGeneral(null); // Limpiar errores al cambiar
+      // Reset selección de monto al abrir panel
+      setMontoSeleccionTipo('TOTAL');
+      setMontoCustom('');
     }
   };
 
@@ -271,26 +394,174 @@ export default function InquilinoEdificios() {
   if (loading) return <p className="p-4 font-bold text-gray-600">Cargando edificios...</p>;
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <h1 className="text-2xl font-bold text-gray-800">Mis Alquileres</h1>
-        <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2">
-          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Comprobantes del mes</span>
-          <input
-            type="month"
-            value={mesComprobantes}
-            onChange={(ev) => setMesComprobantes(ev.target.value)}
-            className="rounded-md border border-gray-200 px-2 py-1 text-sm"
-          />
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">
+            {verHistorial ? "Mi Historial" : "Mis Alquileres"}
+          </h1>
+          <p className="text-gray-500 text-sm mt-1">
+            {verHistorial ? "Consulta tus contratos y pagos pasados" : "Gestiona tus unidades actuales y realiza pagos"}
+          </p>
         </div>
-      </div>
+
+        {!verHistorial && (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-right shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Deuda pendiente total</p>
+            <p className="text-2xl font-black text-slate-900">${deudaPendienteTotal.toLocaleString('es-AR')}</p>
+            <p className="text-[11px] font-medium text-slate-500">Incluye pendientes y parciales</p>
+          </div>
+        )}
+        
+        <div className="flex flex-wrap items-center gap-3">
+          <Button 
+            variant={verHistorial ? "outline" : "default"}
+            onClick={() => setVerHistorial(!verHistorial)}
+            className="rounded-xl font-bold gap-2 h-11 px-6 shadow-sm transition-all"
+          >
+            {verHistorial ? (
+              <><ArrowLeft className="size-4" /> Volver a Alquileres</>
+            ) : (
+              <><History className="size-4" /> Ver Mi Historial Completo</>
+            )}
+          </Button>
+
+          {!verHistorial && (
+            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Mes</span>
+              <input
+                type="month"
+                value={mesComprobantes}
+                onChange={(ev) => setMesComprobantes(ev.target.value)}
+                className="bg-transparent border-none p-0 text-sm font-bold focus:ring-0 text-gray-700 cursor-pointer"
+              />
+            </div>
+          )}
+        </div>
+      </header>
 
       {error && (
-        <p className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>
+        <Card className="border-red-200 bg-red-50 text-red-700">
+          <CardContent className="p-4 flex items-center gap-2 text-sm">
+            ⚠️ {error}
+          </CardContent>
+        </Card>
       )}
-      <h1 className="text-2xl font-bold mb-6 text-gray-800">Mis Alquileres / Expensas</h1>
 
-      <div className="grid gap-6">
+      {verHistorial ? (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <section>
+            <div className="flex items-center gap-2 mb-4 px-2">
+              <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
+                <Building2 className="size-5" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-800">Historial de Contratos</h2>
+            </div>
+            
+            <Card className="overflow-hidden border-gray-200 shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-gray-50/50 border-b">
+                    <tr>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-[11px]">Edificio / Unidad</th>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-[11px]">Monto</th>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-[11px]">Vencimiento</th>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-[11px]">Periodo</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {historialContratos.length === 0 ? (
+                      <tr><td colSpan={4} className="px-6 py-12 text-center text-gray-400 font-medium italic">No hay historial de contratos registrado todavía.</td></tr>
+                    ) : (
+                      historialContratos.map((hc) => (
+                        <tr key={hc.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-6 py-4">
+                            <p className="font-extrabold text-gray-900">{hc.unidad?.edificio?.nombre}</p>
+                            <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                              <span className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px] font-bold text-gray-600">
+                                {hc.unidad?.piso} {hc.unidad?.nombre}
+                              </span>
+                            </p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="font-bold text-gray-900">${hc.montoAlquiler.toLocaleString('es-AR')}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <Badge variant="outline" className="font-medium bg-white">
+                              <Calendar className="size-3 mr-1 text-gray-400" />
+                              {hc.vencimientoContrato || "No especificado"}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-xs font-semibold text-gray-600 bg-slate-100 inline-flex px-3 py-1 rounded-full">
+                              {new Date(hc.fechaInicio).toLocaleDateString('es-AR')} → {hc.fechaFin ? new Date(hc.fechaFin).toLocaleDateString('es-AR') : <span className="text-green-600 ml-1">Vigente</span>}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </section>
+
+          <section>
+            <div className="flex items-center gap-2 mb-4 px-2">
+              <div className="p-2 bg-green-100 rounded-lg text-green-600">
+                <CreditCard className="size-5" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-800">Historial de Pagos</h2>
+            </div>
+
+            <Card className="overflow-hidden border-gray-200 shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-gray-50/50 border-b">
+                    <tr>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-[11px]">Fecha y Edificio</th>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-[11px]">Monto</th>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-[11px]">Método</th>
+                      <th className="px-6 py-4 font-bold text-gray-500 uppercase tracking-wider text-[11px]">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {historialPagos.length === 0 ? (
+                      <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-400 font-medium italic">No se han realizado pagos todavía.</td></tr>
+                    ) : (
+                      historialPagos.map((p) => (
+                        <tr key={p.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-6 py-4">
+                            <p className="font-bold text-gray-900">{p.unidad?.edificio?.nombre}</p>
+                            <p className="text-[10px] text-gray-400 font-medium uppercase mt-0.5">
+                              {new Date(p.fechaPago).toLocaleString('es-AR', { dateStyle: 'medium', timeStyle: 'short' })}
+                            </p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-lg font-black text-gray-900">${p.monto.toLocaleString('es-AR')}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2 text-gray-600">
+                              {p.metodo === 'TARJETA' ? <CreditCard className="size-4" /> : <Banknote className="size-4" />}
+                              <span className="text-xs font-bold">{p.metodo}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <Badge className={`rounded-full px-3 py-0.5 text-[10px] font-black uppercase tracking-widest ${p.estado === 'PAGADO' ? 'bg-green-500/10 text-green-600 hover:bg-green-500/20 border-green-200' : 'bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 border-orange-200'}`} variant="outline">
+                              {p.estado}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </section>
+        </div>
+      ) : (
+        <div className="grid gap-6">
         {edificios.map((e) => {
           const detallePago = calcularDetallePago(e);
 
@@ -318,9 +589,11 @@ export default function InquilinoEdificios() {
                     ${detallePago.totalPagar.toLocaleString('es-AR')}
                   </p>
                   <p className="text-[11px] text-slate-500 mt-1">
-                    Alquiler ${detallePago.alquiler.toLocaleString('es-AR')} + Expensas ${detallePago.gastoExpensas.toLocaleString('es-AR')} + Extra ${detallePago.gastoExtraProrrateado.toLocaleString('es-AR')}
+                    Alquiler ${detallePago.alquiler.toLocaleString('es-AR')} + Expensas ${detallePago.gastoExpensas.toLocaleString('es-AR')} + Deuda ${detallePago.gastoExtraProrrateado.toLocaleString('es-AR')}
                   </p>
-                  <p className="text-3xl font-black text-slate-900">${(e.expensasBase || 0).toLocaleString('es-AR')}</p>
+                  <p className="mt-2 text-xs font-semibold text-slate-600">
+                    Deuda pendiente: ${Math.max(0, deudasPorEdificio[e.id] || 0).toLocaleString('es-AR')}
+                  </p>
                 </div>
 
                 <div className="flex gap-2 w-full">
@@ -392,7 +665,10 @@ export default function InquilinoEdificios() {
                     />
                     <div className="flex gap-2">
                       <button onClick={() => setEdificioExpandido(null)} className="flex-1 py-2 font-bold text-gray-500">Cancelar</button>
-                      <button onClick={() => confirmarAvisoEfectivo(e.id, e.expensasBase || 0)} disabled={procesando} className="flex-2 bg-orange-600 text-white py-2 px-6 rounded-xl font-bold disabled:opacity-50">
+                      <button onClick={() => {
+                          const montoAEnviar = montoSeleccionTipo === 'TOTAL' ? detallePago.totalPagar : montoSeleccionTipo === 'DEUDA' ? Math.max(0, deudasPorEdificio[e.id] || 0) : Number(parseFloat(montoCustom) || 0);
+                          confirmarAvisoEfectivo(e.id, montoAEnviar);
+                        }} disabled={procesando} className="flex-2 bg-orange-600 text-white py-2 px-6 rounded-xl font-bold disabled:opacity-50">
                         {procesando ? "Enviando..." : "Confirmar Aviso"}
                       </button>
                     </div>
@@ -400,8 +676,30 @@ export default function InquilinoEdificios() {
                 )}
 
                 {metodoSeleccionado === 'TARJETA' && (
-                  <form onSubmit={(ev) => { ev.preventDefault(); confirmarPagoTarjeta(e.id, e.expensasBase || 0); }} className="max-w-md mx-auto space-y-4">
-                    <div className="grid grid-cols-1 gap-4">
+                      <form onSubmit={(ev) => { ev.preventDefault();
+                            const montoAEnviar = montoSeleccionTipo === 'TOTAL' ? detallePago.totalPagar : montoSeleccionTipo === 'DEUDA' ? Math.max(0, deudasPorEdificio[e.id] || 0) : Number(parseFloat(montoCustom) || 0);
+                            confirmarPagoTarjeta(e.id, montoAEnviar);
+                          }} className="max-w-md mx-auto space-y-4">
+                        <div className="space-y-2">
+                          <p className="text-xs font-bold text-gray-600">Seleccionar monto a pagar</p>
+                          <div className="flex gap-2">
+                            <button type="button" onClick={() => setMontoSeleccionTipo('TOTAL')} className={`px-3 py-1 rounded-lg text-sm font-bold ${montoSeleccionTipo === 'TOTAL' ? 'bg-blue-700 text-white' : 'bg-gray-100'}`}>
+                              Total a Pagar (${detallePago.totalPagar.toLocaleString('es-AR')})
+                            </button>
+                            <button type="button" onClick={() => setMontoSeleccionTipo('DEUDA')} className={`px-3 py-1 rounded-lg text-sm font-bold ${montoSeleccionTipo === 'DEUDA' ? 'bg-blue-700 text-white' : 'bg-gray-100'}`}>
+                              Deuda pendiente (${Math.max(0, deudasPorEdificio[e.id] || 0).toLocaleString('es-AR')})
+                            </button>
+                            <div className="flex items-center gap-2">
+                              <button type="button" onClick={() => setMontoSeleccionTipo('OTRO')} className={`px-3 py-1 rounded-lg text-sm font-bold ${montoSeleccionTipo === 'OTRO' ? 'bg-blue-700 text-white' : 'bg-gray-100'}`}>
+                                Otro monto
+                              </button>
+                              {montoSeleccionTipo === 'OTRO' && (
+                                <input type="number" step="0.01" min="0" value={montoCustom} onChange={(ev) => setMontoCustom(ev.target.value)} placeholder="0.00" className="w-28 p-2 border rounded-xl" />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-4">
                       <div>
                         <input 
                           type="text" placeholder="Número de Tarjeta (16 dígitos)"
@@ -450,7 +748,7 @@ export default function InquilinoEdificios() {
                       </div>
                     )}
 
-                    <button type="submit" disabled={procesando} className="w-full bg-blue-600 text-white py-3 rounded-xl font-extrabold shadow-lg shadow-blue-200 disabled:opacity-50 transition-transform active:scale-95">
+                    <button type="submit" disabled={procesando || (montoSeleccionTipo === 'OTRO' && (Number(parseFloat(montoCustom) || 0) <= 0))} className="w-full bg-blue-600 text-white py-3 rounded-xl font-extrabold shadow-lg shadow-blue-200 disabled:opacity-50 transition-transform active:scale-95">
                       {procesando ? "Procesando..." : "CONFIRMAR PAGO"}
                     </button>
                   </form>
@@ -477,6 +775,7 @@ export default function InquilinoEdificios() {
           </div>
         )})}
       </div>
+    )}
     </div>
   );
 }

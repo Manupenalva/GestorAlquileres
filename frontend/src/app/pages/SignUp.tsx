@@ -11,11 +11,13 @@ const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
 
 type RolUsuario = 'ADMIN' | 'PROP' | 'INQ';
 
+const CLAVE_SECRETA = 'Admin123!'; 
+
 export function SignUp() {
   const navigate = useNavigate();
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
-  const [rol, setRol] = useState<RolUsuario>('ADMIN');
+  const [rol, setRol] = useState<RolUsuario>('INQ');
   const [contrasena, setContrasena] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -30,18 +32,29 @@ export function SignUp() {
     }
   }, [navigate]);
 
+
+  const [claveSecreta, setClaveSecreta] = useState('');
   const canSubmit = useMemo(() => {
-    return (
+    const baseValido =
       nombre.trim().length >= 3 &&
       email.trim().length > 0 &&
-      contrasena.trim().length >= 4
-    );
-  }, [nombre, email, contrasena]);
+      contrasena.trim().length >= 4;
+    if (rol === 'ADMIN' || rol === 'PROP') {
+      return baseValido && claveSecreta.trim().length > 0;
+    }
+
+    return baseValido;
+  }, [nombre, email, contrasena, rol, claveSecreta]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!canSubmit || loading) {
+      return;
+    }
+
+    if ((rol === 'ADMIN' || rol === 'PROP') && claveSecreta !== CLAVE_SECRETA) {
+      toast.error('Clave de acceso incorrecta');
       return;
     }
 
@@ -53,7 +66,7 @@ export function SignUp() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ nombre, email, rol, contrasena }),
+        body: JSON.stringify({ nombre, email, rol, contrasena, claveSecreta }),
       });
 
       if (!response.ok) {
@@ -150,6 +163,19 @@ export function SignUp() {
                 />
               </div>
 
+              {(rol === 'ADMIN' || rol === 'PROP') && (
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-secret">Clave de acceso</Label>
+                    <Input
+                      id="signup-secret"
+                      type="password"
+                      value={claveSecreta}
+                      onChange={(event) => setClaveSecreta(event.target.value)}
+                      placeholder="Ingresá la clave proporcionada"
+                      required
+                    />
+                  </div>
+                )}
               <Button type="submit" className="w-full" disabled={!canSubmit || loading}>
                 {loading ? 'Creando cuenta...' : 'Registrarme'}
               </Button>

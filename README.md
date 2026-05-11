@@ -20,6 +20,12 @@ Ambos servicios se orquestan con `docker-compose` en una red interna compartida.
 docker compose up --build
 ```
 
+o Sin logs:
+
+```bash
+docker compose up -d --build --remove-orphans  
+```
+
 2. URLs disponibles:
 
 - Frontend: `http://localhost:20300`

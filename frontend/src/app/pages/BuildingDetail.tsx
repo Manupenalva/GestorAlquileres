@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router';
 import { Building, Tenant, Payment, NewExpenseInput } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -8,6 +8,7 @@ import { Input } from '../components/ui/input';
 import { AddTenantForm } from '../components/AddTenantForm';
 import { AddExpenseForm } from '../components/AddExpenseForm';
 import { RegisterPaymentDialog } from '../components/RegisterPaymentDialog';
+import { TenantHistoryDialog } from '../components/TenantHistoryDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +23,8 @@ import {
 import { ArrowLeft, Building2, MapPin, Home, DollarSign, BarChart3, Phone, Mail, Calendar, CheckCircle2, XCircle, Users, Trash2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
+
 interface BuildingDetailProps {
   buildings: Building[];
   tenants: Tenant[];
@@ -33,6 +36,10 @@ interface BuildingDetailProps {
   onAddExpense: (expense: any) => void;
   onRegisterPayment: (payment: Omit<Payment, 'id' | 'date'>) => Promise<void>;
 }
+
+type TenantDebtSummary = {
+  totalPendiente: number;
+};
 
 export function BuildingDetail({ 
   buildings, 
@@ -48,10 +55,14 @@ export function BuildingDetail({
   const navigate = useNavigate();
   const [deleting, setDeleting] = useState(false);
   const [tenantSearch, setTenantSearch] = useState('');
+  const [tenantDebtById, setTenantDebtById] = useState<Record<string, number>>({});
   const { id } = useParams();
   const building = buildings.find(b => String(b.id) === id);
   const buildingId = building ? String(building.id) : id ?? '';
   const buildingTenants = tenants.filter(t => t.buildingId === buildingId);
+  const buildingTenantDebtKey = buildingTenants
+    .map((tenant) => `${tenant.id}:${tenant.userId ?? ''}`)
+    .join('|');
   const normalizedTenantSearch = tenantSearch.trim().toLowerCase();
   const filteredTenants = buildingTenants.filter((tenant) => {
     if (!normalizedTenantSearch) {
@@ -61,6 +72,40 @@ export function BuildingDetail({
     const fullName = `${tenant.firstName} ${tenant.lastName}`.toLowerCase();
     return fullName.includes(normalizedTenantSearch);
   });
+
+  useEffect(() => {
+    const loadTenantDebts = async () => {
+      if (!building?.id || buildingTenants.length === 0) {
+        setTenantDebtById({});
+        return;
+      }
+
+      try {
+        const results = await Promise.all(
+          buildingTenants.map(async (tenant) => {
+            const userId = tenant.userId;
+            if (!userId) {
+              return [tenant.id, 0] as const;
+            }
+
+            const response = await fetch(`${API_BASE}/api/deudas/inquilino/${userId}/edificio/${building.id}/total`);
+            if (!response.ok) {
+              return [tenant.id, 0] as const;
+            }
+
+            const data = (await response.json()) as TenantDebtSummary;
+            return [tenant.id, Number(data.totalPendiente) || 0] as const;
+          }),
+        );
+
+        setTenantDebtById(Object.fromEntries(results));
+      } catch {
+        setTenantDebtById({});
+      }
+    };
+
+    loadTenantDebts();
+  }, [building?.id, buildingTenantDebtKey]);
 
   if (!building && deleting) {
     return (
@@ -119,9 +164,29 @@ export function BuildingDetail({
     );
   }
 
-  const getCurrentMonthPaymentStatus = (tenantId: string) => {
+  const getCurrentMonthPaymentStatus = (tenantId: string, rentAmount: number) => {
     const currentMonth = new Date().toISOString().slice(0, 7);
-    return payments.find(p => p.tenantId === tenantId && p.month === currentMonth);
+    const monthlyPayments = payments.filter(p => p.tenantId === tenantId && p.month === currentMonth);
+    const confirmedAmount = monthlyPayments
+      .filter((p) => p.status !== 'PENDIENTE')
+      .reduce((sum, p) => sum + p.amount, 0);
+    const hasPending = monthlyPayments.some((p) => p.status === 'PENDIENTE');
+    const remaining = Math.max(0, rentAmount - confirmedAmount);
+
+    let status: 'PAGADO' | 'PARCIAL' | 'PENDIENTE' = 'PENDIENTE';
+    if (remaining <= 0 && confirmedAmount > 0) {
+      status = 'PAGADO';
+    } else if (confirmedAmount > 0) {
+      status = 'PARCIAL';
+    }
+
+    return {
+      monthlyPayments,
+      confirmedAmount,
+      hasPending,
+      remaining,
+      status,
+    };
   };
 
   return (
@@ -260,8 +325,11 @@ export function BuildingDetail({
           ) : (
             <div className="space-y-4">
               {filteredTenants.map((tenant) => {
-                const paymentStatus = getCurrentMonthPaymentStatus(tenant.id);
-                const isPaid = paymentStatus?.isPaid || false;
+                const paymentStatus = getCurrentMonthPaymentStatus(tenant.id, tenant.rentAmount);
+                const isPaid = paymentStatus.status === 'PAGADO';
+                const isPartial = paymentStatus.status === 'PARCIAL';
+                const tenantDebt = tenantDebtById[tenant.id] || 0;
+                const totalDue = tenant.rentAmount + tenantDebt;
                 
                 return (
                   <Card key={tenant.id}>
@@ -276,6 +344,11 @@ export function BuildingDetail({
                                   <Badge className="gap-1 bg-green-500">
                                     <CheckCircle2 className="size-3" />
                                     Pagado
+                                  </Badge>
+                                ) : isPartial ? (
+                                  <Badge className="gap-1 bg-amber-500 text-white">
+                                    <CheckCircle2 className="size-3" />
+                                    Parcial
                                   </Badge>
                                 ) : (
                                   <Badge variant="destructive" className="gap-1">
@@ -303,7 +376,15 @@ export function BuildingDetail({
                             )}
                             <div className="flex items-center gap-2">
                               <DollarSign className="size-4 text-muted-foreground" />
-                              <span>Alquiler: ${tenant.rentAmount.toLocaleString()}</span>
+                              <span>
+                                Alquiler: ${tenant.rentAmount.toLocaleString()} | Deuda pendiente: ${tenantDebt.toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <DollarSign className="size-4 text-muted-foreground" />
+                              <span>
+                                Total a pagar: ${totalDue.toLocaleString()}
+                              </span>
                             </div>
                             <div className="flex items-center gap-2">
                               <Calendar className="size-4 text-muted-foreground" />
@@ -319,6 +400,10 @@ export function BuildingDetail({
                         </div>
                         
                         <div className="flex flex-col gap-2">
+                          <TenantHistoryDialog
+                            tenantId={tenant.userId || 0}
+                            tenantName={`${tenant.firstName} ${tenant.lastName}`}
+                          />
                           <RegisterPaymentDialog
                             tenantId={tenant.id}
                             tenantName={`${tenant.firstName} ${tenant.lastName}`}
@@ -358,9 +443,10 @@ export function BuildingDetail({
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
-                          {paymentStatus && (
+                          {paymentStatus.monthlyPayments.length > 0 && (
                             <p className="text-xs text-muted-foreground text-center">
-                              ${paymentStatus.amount.toLocaleString()}
+                              Cobrado mes: ${paymentStatus.confirmedAmount.toLocaleString()}
+                              {paymentStatus.hasPending ? ' | Hay pagos pendientes de confirmacion' : ''}
                             </p>
                           )}
                         </div>

@@ -13,6 +13,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 
 @Entity
 @Table(name = "usuarios")
@@ -39,6 +40,9 @@ public class Usuario {
     @OneToMany(mappedBy = "propietario")
     @JsonIgnore
     private List<Edificio> edificios = new ArrayList<>();
+
+    @Transient
+    private String claveSecreta;
 
     public Usuario() {
     }
@@ -92,5 +96,13 @@ public class Usuario {
 
     public void setEdificios(List<Edificio> edificios) {
         this.edificios = edificios;
+    }
+
+    public String getClaveSecreta() {
+        return claveSecreta;
+    }
+
+    public void setClaveSecreta(String claveSecreta) {
+        this.claveSecreta = claveSecreta;
     }
 }

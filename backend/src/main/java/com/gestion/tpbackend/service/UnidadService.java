@@ -1,11 +1,14 @@
 package com.gestion.tpbackend.service;
 
 import com.gestion.tpbackend.entity.Edificio;
+import com.gestion.tpbackend.entity.HistorialContrato;
 import com.gestion.tpbackend.entity.Unidad;
 import com.gestion.tpbackend.entity.Usuario;
 import com.gestion.tpbackend.repository.EdificioRepository;
+import com.gestion.tpbackend.repository.HistorialContratoRepository;
 import com.gestion.tpbackend.repository.UnidadRepository;
 import com.gestion.tpbackend.repository.UsuarioRepository;
+import java.time.YearMonth;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -18,11 +21,21 @@ public class UnidadService {
     private final UnidadRepository unidadRepository;
     private final EdificioRepository edificioRepository;
     private final UsuarioRepository usuarioRepository;
+    private final HistorialContratoRepository historialContratoRepository;
+    private final DeudaService deudaService;
 
-    public UnidadService(UnidadRepository unidadRepository, EdificioRepository edificioRepository, UsuarioRepository usuarioRepository) {
+    public UnidadService(
+        UnidadRepository unidadRepository,
+        EdificioRepository edificioRepository,
+        UsuarioRepository usuarioRepository,
+        HistorialContratoRepository historialContratoRepository,
+        DeudaService deudaService
+    ) {
         this.unidadRepository = unidadRepository;
         this.edificioRepository = edificioRepository;
         this.usuarioRepository = usuarioRepository;
+        this.historialContratoRepository = historialContratoRepository;
+        this.deudaService = deudaService;
     }
 
     public List<Unidad> obtenerTodas() {
@@ -50,9 +63,18 @@ public class UnidadService {
         Usuario inquilino = usuarioRepository.findById(inquilinoId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inquilino no encontrado"));
         
+        // Cerrar historial previo si existia
+        cerrarHistorialActual(unidad);
+
         unidad.setInquilino(inquilino);
         Unidad unidadGuardada = unidadRepository.save(unidad);
+
+        deudaService.asegurarDeudaBaseMensual(unidadGuardada, YearMonth.now());
         
+        // Crear nuevo historial
+        HistorialContrato historial = new HistorialContrato(unidad, inquilino, unidad.getMontoAlquiler() != null ? unidad.getMontoAlquiler() : 0.0, unidad.getVencimientoContrato(), java.time.LocalDateTime.now());
+        historialContratoRepository.save(historial);
+
         actualizarCantidadInquilinos(unidad.getEdificio());
         
         return unidadGuardada;
@@ -68,6 +90,11 @@ public class UnidadService {
         Unidad unidad = unidadRepository.findByEdificioIdAndPisoAndNombre(edificioId, piso, nombre)
             .orElseGet(() -> new Unidad(nombre, 0.0, piso, edificio));
             
+        // Cerrar historial previo si el inquilino cambia o se esta re-asignando
+        if (unidad.getInquilino() != null) {
+            cerrarHistorialActual(unidad);
+        }
+
         unidad.setInquilino(inquilino);
         unidad.setMontoAlquiler(montoAlquiler);
         unidad.setPorcentajeDepartamento(porcentajeDepartamento);
@@ -75,7 +102,13 @@ public class UnidadService {
         unidad.setVencimientoContrato(vencimientoContrato);
         
         Unidad unidadGuardada = unidadRepository.save(unidad);
+
+        deudaService.asegurarDeudaBaseMensual(unidadGuardada, YearMonth.now());
         
+        // Crear nuevo historial
+        HistorialContrato historial = new HistorialContrato(unidad, inquilino, montoAlquiler, vencimientoContrato, java.time.LocalDateTime.now());
+        historialContratoRepository.save(historial);
+
         actualizarCantidadInquilinos(edificio);
         
         return unidadGuardada;
@@ -84,6 +117,8 @@ public class UnidadService {
     public void quitarInquilino(Long unidadId) {
         Unidad unidad = obtenerPorId(unidadId);
         
+        cerrarHistorialActual(unidad);
+
         unidad.setInquilino(null);
         unidad.setMontoAlquiler(null);
         unidad.setDiaPago(null);
@@ -91,6 +126,16 @@ public class UnidadService {
         
         unidadRepository.save(unidad);
         actualizarCantidadInquilinos(unidad.getEdificio());
+    }
+
+    private void cerrarHistorialActual(Unidad unidad) {
+        List<HistorialContrato> historiales = historialContratoRepository.findByUnidadId(unidad.getId());
+        historiales.stream()
+            .filter(h -> h.getFechaFin() == null)
+            .forEach(h -> {
+                h.setFechaFin(java.time.LocalDateTime.now());
+                historialContratoRepository.save(h);
+            });
     }
 
     private void actualizarCantidadInquilinos(Edificio edificio) {

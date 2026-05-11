@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { RouterProvider } from 'react-router';
 import { createRouter } from './routes.tsx';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { Building, Tenant, Expense, Payment, UserSummary, NewExpenseInput } from './types';
 import { Toaster } from './components/ui/sonner';
+import { DashboardProvider } from './context/DashboardContext';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
 
@@ -27,31 +28,41 @@ export default function App() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [payments, setPayments] = useLocalStorage<Payment[]>('payments', []);
+  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('auth_token'));
 
-  const loadBuildings = async (signal?: AbortSignal) => {
-    setBuildingsLoading(true);
+  const user = useMemo(() => getAuthUser(), [isAuthenticated]);
+  const isAdmin = user?.rol === 'ADMIN';
 
+  const loadAllTenants = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/edificios`, {
-        signal,
-      });
-
-      if (!response.ok) {
-        throw new Error('No se pudieron cargar los edificios');
+      const response = await fetch(`${API_BASE}/api/unidades`);
+      if (response.ok) {
+        const units = await response.json();
+        const allTenants: Tenant[] = units
+          .filter((unit: any) => unit.inquilino)
+          .map((unit: any) => ({
+            id: String(unit.id),
+            userId: unit.inquilino.id,
+            buildingId: unit.edificio ? String(unit.edificio.id) : '',
+            firstName: unit.inquilino.nombre,
+            lastName: '',
+            email: unit.inquilino.email,
+            phone: '',
+            floor: unit.piso || '',
+            apartmentNumber: unit.nombre || '',
+            contractExpirationDate: unit.vencimientoContrato || '',
+            paymentDayOfMonth: unit.diaPago || 10,
+            rentAmount: unit.montoAlquiler || 0,
+            departmentPercentage: unit.porcentajeDepartamento || 0,
+          }));
+        setTenants(allTenants);
       }
-
-      const data = await response.json();
-      setBuildings(Array.isArray(data) ? data : []);
-      
-      await Promise.all([loadAllTenants(), loadExpenses()]);
-      loadAllTenants();
-      loadAllPayments();
-    } finally {
-      setBuildingsLoading(false);
+    } catch (error) {
+      console.error('Error loading tenants:', error);
     }
-  };
+  }, []);
 
-  const loadExpenses = async () => {
+  const loadExpenses = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/api/gastos`);
       if (!response.ok) {
@@ -73,72 +84,100 @@ export default function App() {
     } catch (error) {
       console.error('Error loading expenses:', error);
     }
-  };
+  }, []);
 
-  const loadAllTenants = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/unidades`);
-      if (response.ok) {
-        const units = await response.json();
-        const allTenants: Tenant[] = units
-          .filter((unit: any) => unit.inquilino)
-          .map((unit: any) => ({
-            id: String(unit.id),
-            buildingId: unit.edificio ? String(unit.edificio.id) : '',
-            firstName: unit.inquilino.nombre,
-            lastName: '',
-            email: unit.inquilino.email,
-            phone: '',
-            floor: unit.piso || '',
-            apartmentNumber: unit.nombre || '',
-            contractExpirationDate: unit.vencimientoContrato || '',
-            paymentDayOfMonth: unit.diaPago || 10,
-            rentAmount: unit.montoAlquiler || 0,
-            departmentPercentage: unit.porcentajeDepartamento || 0,
-          }));
-        setTenants(allTenants);
-      }
-    } catch (error) {
-      console.error('Error loading tenants:', error);
-    }
-  };
-
-  const loadAllPayments = async () => {
+  const loadAllPayments = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/api/pagos`);
       if (response.ok) {
         const contratos = await response.json();
-        const backendPayments: Payment[] = contratos.map((c: any) => ({
-          id: String(c.id),
-          tenantId: String(c.unidad?.id ?? ''),
-          buildingId: String(c.unidad?.edificio?.id ?? ''),
-          amount: c.monto,
-          month: c.fechaPago ? c.fechaPago.slice(0, 7) : '',
-          date: c.fechaPago ?? '',
-          isPaid: c.estado === 'PAGADO',
-        }));
-        setPayments(backendPayments);
+        const normalizedPayments: Payment[] = contratos.map((c: any) => {
+          const estado = String(c.estado ?? '').toUpperCase();
+          const tipoAplicacion = String(c.tipoAplicacion ?? '').toUpperCase();
+          const remainingBalance = typeof c.saldoPendienteTotal === 'number' ? c.saldoPendienteTotal : undefined;
+
+          let status: Payment['status'] = 'PENDIENTE';
+          if (estado === 'PAGADO' && tipoAplicacion === 'PARCIAL') {
+            status = 'PARCIAL';
+          } else if (estado === 'PAGADO') {
+            status = 'PAGADO';
+          }
+
+          return {
+            id: String(c.id),
+            tenantId: String(c.unidad?.id ?? ''),
+            buildingId: String(c.unidad?.edificio?.id ?? ''),
+            amount: c.monto,
+            month: c.fechaPago ? c.fechaPago.slice(0, 7) : '',
+            date: c.fechaPago ?? '',
+            isPaid: status === 'PAGADO',
+            status,
+            remainingBalance,
+            applicationDetail: c.detalleAplicacion || undefined,
+          };
+        });
+
+        setPayments(normalizedPayments);
       }
     } catch (error) {
       console.error('Error loading payments:', error);
     }
-  };
+  }, [setPayments]);
 
-  useEffect(() => {
-    const controller = new AbortController();
+  const loadBuildings = useCallback(async (signal?: AbortSignal) => {
+    if (!localStorage.getItem('auth_token')) return;
+    
+    setBuildingsLoading(true);
 
-    loadBuildings(controller.signal).catch((error) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/edificios`, {
+        signal,
+      });
+
+      if (!response.ok) {
+        throw new Error('No se pudieron cargar los edificios');
+      }
+
+      const data = await response.json();
+      setBuildings(Array.isArray(data) ? data : []);
+      
+      await Promise.all([loadAllTenants(), loadExpenses()]);
+      loadAllPayments();
+    } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         return;
       }
-
       console.error(error);
-    });
+    } finally {
+      setBuildingsLoading(false);
+    }
+  }, [loadAllTenants, loadExpenses, loadAllPayments]);
 
-    return () => controller.abort();
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const token = !!localStorage.getItem('auth_token');
+      setIsAuthenticated((prev) => {
+        if (token !== prev) return token;
+        return prev;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
   }, []);
 
-  const handleAddBuilding = async (buildingData: Omit<Building, 'id'>) => {
+  useEffect(() => {
+    if (isAuthenticated) {
+      const controller = new AbortController();
+      loadBuildings(controller.signal);
+      return () => controller.abort();
+    } else {
+      setBuildings([]);
+      setTenants([]);
+      setExpenses([]);
+    }
+  }, [isAuthenticated, loadBuildings]);
+
+  const handleAddBuilding = useCallback(async (buildingData: Omit<Building, 'id'>) => {
     const authUser = getAuthUser();
 
     if (!authUser?.id) {
@@ -166,9 +205,9 @@ export default function App() {
 
     await response.json();
     await loadBuildings();
-  };
+  }, [loadBuildings]);
 
-  const handleDeleteBuilding = async (buildingId: number) => {
+  const handleDeleteBuilding = useCallback(async (buildingId: number) => {
     const response = await fetch(`${API_BASE}/api/edificios/${buildingId}`, {
       method: 'DELETE',
     });
@@ -194,9 +233,9 @@ export default function App() {
     loadBuildings().catch((error) => {
       console.error(error);
     });
-  };
+  }, [loadBuildings, setPayments]);
 
-  const handleAddTenant = async (tenantData: Omit<Tenant, 'id'>) => {
+  const handleAddTenant = useCallback(async (tenantData: Omit<Tenant, 'id'>) => {
     const response = await fetch(`${API_BASE}/api/unidades/asignar-por-email`, {
       method: 'POST',
       headers: {
@@ -220,9 +259,9 @@ export default function App() {
     }
 
     await loadBuildings();
-  };
+  }, [loadBuildings]);
 
-  const handleRemoveTenant = async (tenantId: string) => {
+  const handleRemoveTenant = useCallback(async (tenantId: string) => {
     const response = await fetch(`${API_BASE}/api/unidades/${tenantId}/inquilino`, {
       method: 'DELETE',
     });
@@ -232,9 +271,9 @@ export default function App() {
     }
 
     await loadBuildings();
-  };
+  }, [loadBuildings]);
 
-  const handleAddExpense = async (expenseData: NewExpenseInput) => {
+  const handleAddExpense = useCallback(async (expenseData: NewExpenseInput) => {
     const formData = new FormData();
     formData.append('type', expenseData.type);
     formData.append('amount', String(expenseData.amount));
@@ -265,10 +304,9 @@ export default function App() {
 
     setExpenses((currentExpenses: Expense[]) => [normalizedExpense, ...currentExpenses]);
     await loadBuildings();
-  };
+  }, [loadBuildings]);
 
-  const handleRegisterPayment = async (paymentData: Omit<Payment, 'id' | 'date'>) => {
-    // Buscar el contrato PENDIENTE de este inquilino para confirmarlo en el backend
+  const handleRegisterPayment = useCallback(async (paymentData: Omit<Payment, 'id' | 'date'>) => {
     const pagosRes = await fetch(`${API_BASE}/api/pagos/edificio/${paymentData.buildingId}`);
     if (!pagosRes.ok) {
       throw new Error('No se pudieron obtener los pagos del edificio');
@@ -286,16 +324,17 @@ export default function App() {
 
     const confirmRes = await fetch(`${API_BASE}/api/pagos/${contratoPendiente.id}/confirmar`, {
       method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ monto: paymentData.amount }),
     });
     if (!confirmRes.ok) {
       throw new Error('No se pudo confirmar el pago en el servidor');
     }
 
-    // Recargar todos los pagos desde el backend para reflejar el nuevo estado
     await loadAllPayments();
-  };
+  }, [loadAllPayments]);
 
-  const router = createRouter({
+  const router = useMemo(() => createRouter({
     buildings,
     buildingsLoading,
     tenants,
@@ -307,12 +346,35 @@ export default function App() {
     onRemoveTenant: handleRemoveTenant,
     onAddExpense: handleAddExpense,
     onRegisterPayment: handleRegisterPayment,
-  });
+  }), [
+    buildings,
+    buildingsLoading,
+    tenants,
+    expenses,
+    payments,
+    handleAddBuilding,
+    handleDeleteBuilding,
+    handleAddTenant,
+    handleRemoveTenant,
+    handleAddExpense,
+    handleRegisterPayment,
+  ]);
 
-  return (
+  const appContent = (
     <>
       <RouterProvider router={router} />
       <Toaster />
     </>
   );
+
+  return isAdmin ? (
+    <DashboardProvider 
+      buildings={buildings} 
+      tenants={tenants} 
+      expenses={expenses} 
+      payments={payments}
+    >
+      {appContent}
+    </DashboardProvider>
+  ) : appContent;
 }
