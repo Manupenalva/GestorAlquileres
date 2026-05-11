@@ -95,7 +95,7 @@ export function BuildingDetail({
       }
     };
     loadTenantDebts();
-  }, [building?.id, buildingTenants.length]);
+  }, [building?.id, buildingTenants, payments]); // Se recarga cuando cambian los pagos
 
   const handleDeleteBuilding = async () => {
     if (!building || deleting) return;
@@ -110,20 +110,33 @@ export function BuildingDetail({
     }
   };
 
-  const getCurrentMonthPaymentStatus = (tenantId: string, rentAmount: number) => {
+  // --- LÓGICA DE ESTADO ACTUALIZADA ---
+  const getCurrentMonthPaymentStatus = (tenantId: string, tenantDebt: number) => {
     const currentMonth = new Date().toISOString().slice(0, 7);
-    const monthlyPayments = payments.filter(p => p.tenantId === tenantId && p.month === currentMonth);
-    const confirmedAmount = monthlyPayments
-      .filter((p) => p.status !== 'PENDIENTE')
-      .reduce((sum, p) => sum + p.amount, 0);
-    const hasPending = monthlyPayments.some((p) => p.status === 'PENDIENTE');
-    const remaining = Math.max(0, rentAmount - confirmedAmount);
+    
+    // Obtenemos todos los pagos confirmados del mes para el historial visual
+    const monthlyPayments = payments.filter(
+        p => p.tenantId === tenantId && p.month === currentMonth && p.status !== 'PENDIENTE'
+    );
+    
+    const totalPagadoMes = monthlyPayments.reduce((sum, p) => sum + p.amount, 0);
 
     let status: 'PAGADO' | 'PARCIAL' | 'PENDIENTE' = 'PENDIENTE';
-    if (remaining <= 0 && confirmedAmount > 0) status = 'PAGADO';
-    else if (confirmedAmount > 0) status = 'PARCIAL';
 
-    return { monthlyPayments, confirmedAmount, hasPending, status };
+    // Si la deuda es 0 o menos, está PAGADO
+    if (tenantDebt <= 0 && totalPagadoMes > 0) {
+        status = 'PAGADO';
+    } 
+    // Si pagó algo pero todavía tiene deuda, es PARCIAL (Pendiente de completar)
+    else if (totalPagadoMes > 0 && tenantDebt > 0) {
+        status = 'PARCIAL';
+    }
+    // Si no pagó nada en el mes
+    else {
+        status = 'PENDIENTE';
+    }
+
+    return { monthlyPayments, status };
   };
 
   if (!building && buildingsLoading) return <div className="p-10 text-center text-muted-foreground">Cargando edificio...</div>;
@@ -149,7 +162,7 @@ export function BuildingDetail({
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>¿Estás completamente seguro?</AlertDialogTitle>
-                  <AlertDialogDescription>Esta acción eliminará el edificio y todos sus registros asociados. No se puede deshacer.</AlertDialogDescription>
+                  <AlertDialogDescription>Esta acción eliminará el edificio y todos sus registros asociados.</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
@@ -179,18 +192,15 @@ export function BuildingDetail({
         <CardContent className="px-0">
           <div className="space-y-4">
             {filteredTenants.map((tenant) => {
-              const paymentStatus = getCurrentMonthPaymentStatus(tenant.id, tenant.rentAmount);
+              const tenantDebt = tenantDebtById[tenant.id] || 0;
+              const paymentStatus = getCurrentMonthPaymentStatus(tenant.id, tenantDebt);
               
-              // --- LÓGICA DE REFUERZO FRONTEND ---
               const hoy = new Date();
               const fechaVencimiento = tenant.contractExpirationDate ? new Date(tenant.contractExpirationDate) : null;
-              
-              // El usuario es activo si la DB dice 'true' Y la fecha no ha pasado
               const usuarioActivo = tenant.activo !== false && (!fechaVencimiento || fechaVencimiento > hoy); 
               
               const isPaid = paymentStatus.status === 'PAGADO';
               const isPartial = paymentStatus.status === 'PARCIAL';
-              const tenantDebt = tenantDebtById[tenant.id] || 0;
 
               return (
                 <Card key={tenant.id} className={`transition-all ${!usuarioActivo ? 'opacity-70 grayscale-[0.5] bg-slate-50 border-red-200' : 'hover:shadow-md'}`}>
@@ -230,7 +240,12 @@ export function BuildingDetail({
                           {tenant.phone && <div className="flex items-center gap-2 text-slate-600"><Phone className="size-4" /><span>{tenant.phone}</span></div>}
                           <div className="flex items-center gap-2 text-slate-700 font-medium">
                             <DollarSign className="size-4 text-green-600" />
-                            <span>Alquiler: <strong>${tenant.rentAmount.toLocaleString()}</strong> | Deuda: <strong className={tenantDebt > 0 ? 'text-red-600' : ''}>${tenantDebt.toLocaleString()}</strong></span>
+                            <span>
+                                Alquiler: <strong>${tenant.rentAmount.toLocaleString()}</strong> | 
+                                Deuda: <strong className={tenantDebt > 0 ? 'text-red-600' : 'text-green-600'}>
+                                    ${tenantDebt.toLocaleString()}
+                                </strong>
+                            </span>
                           </div>
                           {tenant.contractExpirationDate && (
                             <div className={`flex items-center gap-2 col-span-2 font-bold ${!usuarioActivo ? 'text-red-600' : 'text-slate-500'}`}>
@@ -256,7 +271,7 @@ export function BuildingDetail({
                             <Button variant="ghost" size="sm" className="text-red-500 hover:bg-red-50 font-bold"><Trash2 className="size-4 mr-2" />Quitar Inquilino</Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
-                            <AlertDialogHeader><AlertDialogTitle>Confirmar baja</AlertDialogTitle><AlertDialogDescription>¿Deseas desvincular a {tenant.firstName} de esta unidad?</AlertDialogDescription></AlertDialogHeader>
+                            <AlertDialogHeader><AlertDialogTitle>¿Quitar inquilino?</AlertDialogTitle></AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancelar</AlertDialogCancel>
                               <AlertDialogAction className="bg-red-600" onClick={() => onRemoveTenant(tenant.id)}>Quitar</AlertDialogAction>

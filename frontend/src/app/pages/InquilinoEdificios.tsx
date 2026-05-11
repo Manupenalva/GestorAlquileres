@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { ShieldCheck, ShieldAlert, History, CalendarDays } from "lucide-react";
+import { ShieldCheck, ShieldAlert, CalendarDays, DollarSign, MessageSquare, CheckCircle2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea"; 
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
 
@@ -19,7 +21,7 @@ type UnidadInquilino = {
     id?: number; 
     email?: string; 
     activo?: boolean;
-    fechaFinContrato?: string; // Formato ISO, ej: "2024-05-01T00:00:00"
+    fechaFinContrato?: string;
   };
 };
 
@@ -33,15 +35,15 @@ export default function InquilinoEdificios() {
   const [deudasPorEdificio, setDeudasPorEdificio] = useState<Record<number, number>>({});
   const [deudaPendienteTotal, setDeudaPendienteTotal] = useState(0);
 
+  const [montoManual, setMontoManual] = useState<string>("");
+  const [comentario, setComentario] = useState<string>(""); 
+
   const navigate = useNavigate();
 
-  // --- FUNCIÓN DE AYUDA PARA FORMATEAR LA FECHA ---
   const formatearFecha = (fechaISO: string | undefined): string => {
     if (!fechaISO) return "Sin fecha";
-    // Solo tomamos la parte de la fecha (AAAA-MM-DD) y quitamos la hora
     const [fecha] = fechaISO.split('T');
     const [anio, mes, dia] = fecha.split('-');
-    // Devolvemos en formato local (DD/MM/AAAA)
     return `${dia}/${mes}/${anio}`;
   };
 
@@ -50,14 +52,12 @@ export default function InquilinoEdificios() {
       const token = localStorage.getItem("auth_token");
       if (!token) { navigate("/login"); return; }
       try {
-        // 1. Cargar edificios
         const res = await fetch(`${API_BASE}/api/edificios/mis-edificios`, { 
           headers: { Authorization: `Bearer ${token}` } 
         });
         const data = await res.json();
         setEdificios(data);
         
-        // 2. Cargar unidades para ver el estado del inquilino
         const unidadesRes = await fetch(`${API_BASE}/api/unidades`, { 
           headers: { Authorization: `Bearer ${token}` } 
         });
@@ -70,7 +70,6 @@ export default function InquilinoEdificios() {
           setUnidadesPorEdificio(porEdificio);
         }
 
-        // 3. Cargar deudas
         const deudasRes = await fetch(`${API_BASE}/api/deudas/mis-deudas`, { 
           headers: { Authorization: `Bearer ${token}` } 
         });
@@ -96,20 +95,41 @@ export default function InquilinoEdificios() {
     fetchDatos();
   }, [navigate]);
 
-  const togglePanel = (id: number, metodo: 'TARJETA' | 'EFECTIVO') => {
+  const togglePanel = (id: number, metodo: 'TARJETA' | 'EFECTIVO', deudaActual: number) => {
     if (edificioExpandido === id && metodoSeleccionado === metodo) {
       setEdificioExpandido(null);
       setMetodoSeleccionado(null);
+      setMontoManual("");
+      setComentario("");
     } else {
       setEdificioExpandido(id);
       setMetodoSeleccionado(metodo);
+      setMontoManual(deudaActual.toString());
+      setComentario(""); 
     }
   };
 
   const confirmarPago = async (edificioId: number, metodo: string) => {
+    const valorFinal = metodo === 'EFECTIVO' ? 0 : parseFloat(montoManual);
+    const deudaTotal = deudasPorEdificio[edificioId] || 0;
+
+    if (metodo === 'TARJETA') {
+        if (isNaN(valorFinal) || valorFinal <= 0) {
+            alert("Por favor, ingresá un monto válido.");
+            return;
+        }
+        if (valorFinal > deudaTotal) {
+            alert("No podés pagar más de lo que debés.");
+            return;
+        }
+    }
+
     setProcesando(true);
     const token = localStorage.getItem("auth_token");
-    const montoAEnviar = deudasPorEdificio[edificioId] || 0;
+
+    const notaFinal = metodo === 'EFECTIVO' 
+        ? (comentario.trim() || "Aviso: Pasaré a pagar en efectivo.") 
+        : `Pago Online vía Tarjeta: $${valorFinal}`;
 
     try {
       const response = await fetch(`${API_BASE}/api/pagos`, {
@@ -120,18 +140,18 @@ export default function InquilinoEdificios() {
         },
         body: JSON.stringify({
           edificioId,
-          monto: montoAEnviar,
+          monto: valorFinal,
           metodo: metodo,
-          nota: `Pago vía portal inquilino: ${metodo}`,
+          nota: notaFinal,
         }),
       });
 
       if (!response.ok) throw new Error("Error en el pago");
 
-      alert(metodo === "TARJETA" ? "¡Pago exitoso!" : "Pago en efectivo pendiente de aprobación.");
+      alert(metodo === "TARJETA" ? "¡Pago exitoso!" : "Aviso enviado. El administrador registrará el cobro cuando pases.");
       window.location.reload();
     } catch (err) {
-      alert("Error al registrar el pago.");
+      alert("Error al procesar la solicitud.");
     } finally {
       setProcesando(false);
     }
@@ -157,8 +177,6 @@ export default function InquilinoEdificios() {
           const deudaTotal = deudasPorEdificio[e.id] || 0;
           const estaAlDia = deudaTotal <= 0;
           const inquilinoInfo = unidadesPorEdificio[e.id]?.inquilino;
-          
-          // Lógica de Actividad
           const usuarioActivo = inquilinoInfo?.activo !== false;
 
           return (
@@ -167,8 +185,6 @@ export default function InquilinoEdificios() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <h2 className="text-xl font-bold">{e.nombre}</h2>
-                    
-                    {/* BADGES DE ESTADO ACTUALIZADOS */}
                     {usuarioActivo ? (
                       <Badge className="bg-green-100 text-green-700 border-green-200 font-bold">
                         <ShieldCheck className="size-3 mr-1"/> Activo
@@ -181,7 +197,6 @@ export default function InquilinoEdificios() {
                   </div>
                   <p className="text-gray-500 text-sm">{e.direccion}</p>
                   
-                  {/* --- MENSAJE DE VENCIMIENTO REFORMATEADO --- */}
                   {!usuarioActivo && (
                     <div className="flex items-center gap-2 mt-3 p-3 bg-red-100/50 rounded-lg text-sm border border-red-200">
                         <CalendarDays className="size-5 text-red-600" />
@@ -192,32 +207,85 @@ export default function InquilinoEdificios() {
                   )}
                 </div>
 
-                <div className="bg-slate-50 border p-4 rounded-xl min-w-[260px] text-center">
-                  <p className="text-2xl font-black mb-3">{estaAlDia ? '✅ AL DÍA' : `$${deudaTotal.toLocaleString('es-AR')}`}</p>
-                  <div className="flex gap-2">
-                    <Button 
-                      onClick={() => togglePanel(e.id, 'TARJETA')}
-                      disabled={estaAlDia || !usuarioActivo}
-                      className="flex-1 bg-blue-600 text-white"
-                    >💳 Tarjeta</Button>
-                    <Button 
-                      onClick={() => togglePanel(e.id, 'EFECTIVO')}
-                      disabled={estaAlDia || !usuarioActivo}
-                      className="flex-1 bg-orange-500 text-white"
-                    >💵 Efectivo</Button>
-                  </div>
-                  {!usuarioActivo && <p className="text-[10px] text-red-500 font-bold mt-1.5 uppercase tracking-wider">Pagos deshabilitados</p>}
+                <div className="bg-slate-50 border p-4 rounded-xl min-w-[260px] text-center flex flex-col justify-center">
+                  {estaAlDia ? (
+                    // --- VISTA CUANDO NO HAY DEUDA ---
+                    <div className="py-2">
+                        <div className="flex flex-col items-center gap-1">
+                            <div className="bg-green-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm animate-in zoom-in duration-300">
+                                <CheckCircle2 className="size-5" />
+                                <span className="text-lg font-black tracking-tight uppercase">¡AL DÍA!</span>
+                            </div>
+                            <p className="text-[10px] text-green-600 font-bold uppercase mt-1">Sin pagos pendientes</p>
+                        </div>
+                    </div>
+                  ) : (
+                    // --- VISTA CUANDO HAY DEUDA ---
+                    <>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Deuda Pendiente</p>
+                        <p className="text-2xl font-black mb-3 text-slate-900">${deudaTotal.toLocaleString('es-AR')}</p>
+                        <div className="flex gap-2">
+                            <Button 
+                            onClick={() => togglePanel(e.id, 'TARJETA', deudaTotal)}
+                            disabled={!usuarioActivo}
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                            >💳 Tarjeta</Button>
+                            <Button 
+                            onClick={() => togglePanel(e.id, 'EFECTIVO', deudaTotal)}
+                            disabled={!usuarioActivo}
+                            className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold"
+                            >💵 Efectivo</Button>
+                        </div>
+                    </>
+                  )}
+                  {!usuarioActivo && !estaAlDia && (
+                    <p className="text-[10px] text-red-500 font-bold mt-1.5 uppercase tracking-wider">Pagos bloqueados</p>
+                  )}
                 </div>
               </div>
 
               {edificioExpandido === e.id && (
-                <div className="bg-blue-50 border-t p-6 text-center">
-                  <h3 className="font-bold mb-4">Confirmar pago vía {metodoSeleccionado}</h3>
-                  <div className="flex justify-center gap-4">
-                    <Button variant="outline" onClick={() => setEdificioExpandido(null)}>Cancelar</Button>
-                    <Button className="bg-blue-700 text-white" onClick={() => confirmarPago(e.id, metodoSeleccionado!)} disabled={procesando}>
-                      {procesando ? "Procesando..." : "Confirmar Pago"}
-                    </Button>
+                <div className="bg-slate-50 border-t p-6 animate-in slide-in-from-top-2 duration-300">
+                  <div className="max-w-sm mx-auto space-y-4">
+                    <div className="text-center">
+                        <h3 className="font-bold text-slate-900">
+                            {metodoSeleccionado === 'TARJETA' ? 'Pago con Tarjeta' : 'Aviso de Pago en Efectivo'}
+                        </h3>
+                    </div>
+                    
+                    {metodoSeleccionado === 'TARJETA' ? (
+                        <div className="relative">
+                            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+                            <Input 
+                                type="number"
+                                value={montoManual}
+                                onChange={(e) => setMontoManual(e.target.value)}
+                                className="pl-9 font-black text-lg focus-visible:ring-blue-600"
+                                placeholder="0.00"
+                            />
+                        </div>
+                    ) : (
+                        <div className="relative">
+                            <MessageSquare className="absolute left-3 top-3 text-slate-400 size-4" />
+                            <Textarea 
+                                value={comentario}
+                                onChange={(e) => setComentario(e.target.value)}
+                                className="pl-9 min-h-[90px] focus-visible:ring-orange-500 border-slate-200"
+                                placeholder="Ej: Paso mañana a las 18 hs a pagar..."
+                            />
+                        </div>
+                    )}
+
+                    <div className="flex gap-2">
+                        <Button variant="outline" className="flex-1" onClick={() => setEdificioExpandido(null)}>Cancelar</Button>
+                        <Button 
+                            className={`flex-1 font-bold text-white ${metodoSeleccionado === 'TARJETA' ? 'bg-blue-700 hover:bg-blue-800' : 'bg-orange-600 hover:bg-orange-700'}`} 
+                            onClick={() => confirmarPago(e.id, metodoSeleccionado!)}
+                            disabled={procesando}
+                        >
+                            {procesando ? "Enviando..." : (metodoSeleccionado === 'TARJETA' ? "Confirmar Pago" : "Enviar Aviso")}
+                        </Button>
+                    </div>
                   </div>
                 </div>
               )}
