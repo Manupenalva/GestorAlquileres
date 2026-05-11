@@ -77,6 +77,14 @@ public class Edificio {
         return direccion;
     }
 
+    public List<Unidad> getUnidades() {
+        return unidades;
+    }
+
+    public void setUnidades(List<Unidad> unidades) {
+        this.unidades = unidades;
+    }
+    
     public void setDireccion(String direccion) {
         this.direccion = direccion;
     }

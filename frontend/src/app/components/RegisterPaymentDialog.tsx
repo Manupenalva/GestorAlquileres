@@ -13,6 +13,7 @@ interface RegisterPaymentDialogProps {
   buildingId: string;
   rentAmount: number;
   onRegister: (payment: Omit<Payment, 'id' | 'date'>) => Promise<void>;
+  disabled?: boolean; // <--- AGREGADO: Para que TypeScript no tire error
 }
 
 export function RegisterPaymentDialog({ 
@@ -20,7 +21,8 @@ export function RegisterPaymentDialog({
   tenantName,
   buildingId, 
   rentAmount, 
-  onRegister 
+  onRegister,
+  disabled // <--- AGREGADO: Recibimos la prop
 }: RegisterPaymentDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -59,7 +61,8 @@ export function RegisterPaymentDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="gap-2">
+        {/* AGREGADO: disabled={disabled} para bloquear el botón */}
+        <Button size="sm" className="gap-2" disabled={disabled}>
           <DollarSign className="size-4" />
           Registrar Pago
         </Button>
