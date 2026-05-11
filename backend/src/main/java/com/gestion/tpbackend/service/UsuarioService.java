@@ -1,5 +1,5 @@
 package com.gestion.tpbackend.service;
-
+import java.time.LocalDateTime;
 import com.gestion.tpbackend.entity.Usuario;
 import com.gestion.tpbackend.repository.UsuarioRepository;
 import java.util.List;
@@ -24,7 +24,16 @@ public class UsuarioService {
     }
 
     public List<Usuario> obtenerTodos() {
-        return usuarioRepository.findAll();
+        List<Usuario> usuarios = usuarioRepository.findAll();
+        LocalDateTime ahora = LocalDateTime.now();
+
+        for (Usuario u : usuarios) {
+            if (u.isActivo() && u.getFechaFinContrato() != null && ahora.isAfter(u.getFechaFinContrato())) {
+                u.setActivo(false);
+                usuarioRepository.save(u); 
+            }
+        }
+        return usuarios;
     }
 
     public Usuario obtenerPorId(Long id) {
