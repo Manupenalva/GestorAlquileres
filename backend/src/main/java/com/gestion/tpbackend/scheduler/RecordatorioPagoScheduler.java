@@ -53,12 +53,12 @@ public class RecordatorioPagoScheduler {
             String emailInquilino = unidad.getInquilino().getEmail();
             String nombreInquilino = unidad.getInquilino().getNombre();
 
-            if (diasRestantes == 7) {
-                emailService.enviarRecordatorio(emailInquilino, nombreInquilino, deudaPendiente, unidad, "una semana");
+            if (diasRestantes == 0) {
+                emailService.enviarRecordatorioUltimodia(emailInquilino, nombreInquilino, deudaPendiente, unidad);
             } else if (diasRestantes == 1) {
                 emailService.enviarRecordatorio(emailInquilino, nombreInquilino, deudaPendiente, unidad, "un día");
             } else {
-                emailService.enviarRecordatorioUltimodia(emailInquilino, nombreInquilino, deudaPendiente, unidad);
+                emailService.enviarRecordatorio(emailInquilino, nombreInquilino, deudaPendiente, unidad, "un semana"); //Modificarlo para la demo
             }
         }
     }
