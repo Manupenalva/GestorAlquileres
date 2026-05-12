@@ -9,6 +9,7 @@ import { AddTenantForm } from '../components/AddTenantForm';
 import { AddExpenseForm } from '../components/AddExpenseForm';
 import { RegisterPaymentDialog } from '../components/RegisterPaymentDialog';
 import { TenantHistoryDialog } from '../components/TenantHistoryDialog';
+import { DebtDistributionSection } from '../components/DebtDistributionSection';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -179,6 +180,19 @@ export function BuildingDetail({
         <Card><CardHeader className="pb-2"><CardTitle className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Inquilinos</CardTitle></CardHeader><CardContent><div className="text-2xl font-black">{building.cantidadInquilinos || 0}</div></CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Expensas Base</CardTitle></CardHeader><CardContent><div className="text-2xl font-black">${(building.expensasBase || 0).toLocaleString()}</div></CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Gastos Extra</CardTitle></CardHeader><CardContent><div className="text-2xl font-black">${(building.gastosExtra || 0).toLocaleString()}</div></CardContent></Card>
+      </div>
+
+      {/* Sección de Distribución de Deuda */}
+      <div className="mb-8">
+        <DebtDistributionSection
+          tenants={buildingTenants.map((tenant) => ({
+            id: tenant.id,
+            name: `${tenant.firstName} ${tenant.lastName}`,
+            floor: tenant.floor,
+            apartment: tenant.apartmentNumber,
+            debt: tenantDebtById[tenant.id] || 0,
+          }))}
+        />
       </div>
 
       <Card className="border-none shadow-none bg-transparent">
