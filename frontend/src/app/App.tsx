@@ -273,6 +273,32 @@ export default function App() {
     await loadBuildings();
   }, [loadBuildings]);
 
+  const handleIncreaseRent = useCallback(async (unitId: string, incrementPercentage: number) => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      throw new Error('Debes iniciar sesión para actualizar el alquiler');
+    }
+
+    const response = await fetch(`${API_BASE}/api/unidades/${unitId}/alquiler`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ incrementoPorcentaje: incrementPercentage }),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('No tenés permisos para actualizar el alquiler');
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'No se pudo actualizar el alquiler');
+    }
+
+    await loadBuildings();
+  }, [loadBuildings]);
+
   const handleAddExpense = useCallback(async (expenseData: NewExpenseInput) => {
     const formData = new FormData();
     formData.append('type', expenseData.type);
@@ -346,6 +372,7 @@ export default function App() {
     onRemoveTenant: handleRemoveTenant,
     onAddExpense: handleAddExpense,
     onRegisterPayment: handleRegisterPayment,
+    onIncreaseRent: handleIncreaseRent,
   }), [
     buildings,
     buildingsLoading,
@@ -358,6 +385,7 @@ export default function App() {
     handleRemoveTenant,
     handleAddExpense,
     handleRegisterPayment,
+    handleIncreaseRent,
   ]);
 
   const appContent = (

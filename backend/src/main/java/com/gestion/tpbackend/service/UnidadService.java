@@ -1,16 +1,19 @@
 package com.gestion.tpbackend.service;
 
 import com.gestion.tpbackend.entity.Edificio;
+import com.gestion.tpbackend.entity.Deuda;
 import com.gestion.tpbackend.entity.HistorialContrato;
 import com.gestion.tpbackend.entity.Unidad;
 import com.gestion.tpbackend.entity.Usuario;
 import com.gestion.tpbackend.repository.EdificioRepository;
+import com.gestion.tpbackend.repository.DeudaRepository;
 import com.gestion.tpbackend.repository.HistorialContratoRepository;
 import com.gestion.tpbackend.repository.UnidadRepository;
 import com.gestion.tpbackend.repository.UsuarioRepository;
 import java.time.YearMonth;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -21,6 +24,7 @@ public class UnidadService {
     private final UnidadRepository unidadRepository;
     private final EdificioRepository edificioRepository;
     private final UsuarioRepository usuarioRepository;
+    private final DeudaRepository deudaRepository;
     private final HistorialContratoRepository historialContratoRepository;
     private final DeudaService deudaService;
 
@@ -28,12 +32,14 @@ public class UnidadService {
         UnidadRepository unidadRepository,
         EdificioRepository edificioRepository,
         UsuarioRepository usuarioRepository,
+        DeudaRepository deudaRepository,
         HistorialContratoRepository historialContratoRepository,
         DeudaService deudaService
     ) {
         this.unidadRepository = unidadRepository;
         this.edificioRepository = edificioRepository;
         this.usuarioRepository = usuarioRepository;
+        this.deudaRepository = deudaRepository;
         this.historialContratoRepository = historialContratoRepository;
         this.deudaService = deudaService;
     }
@@ -128,6 +134,32 @@ public class UnidadService {
         actualizarCantidadInquilinos(unidad.getEdificio());
     }
 
+    @Transactional
+    public Unidad aumentarAlquiler(Long unidadId, Double incrementoPorcentaje) {
+        if (incrementoPorcentaje == null || incrementoPorcentaje <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El incremento debe ser mayor a 0");
+        }
+
+        Unidad unidad = obtenerPorId(unidadId);
+        if (unidad.getInquilino() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La unidad no tiene un inquilino asignado");
+        }
+
+        Double alquilerActual = unidad.getMontoAlquiler();
+        if (alquilerActual == null || alquilerActual <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La unidad no tiene un alquiler vigente");
+        }
+
+        double nuevoAlquiler = redondear(alquilerActual * (1 + incrementoPorcentaje / 100.0));
+        unidad.setMontoAlquiler(nuevoAlquiler);
+        Unidad unidadGuardada = unidadRepository.save(unidad);
+
+        actualizarHistorialContrato(unidadGuardada, nuevoAlquiler);
+        sincronizarDeudaMensual(unidadGuardada, nuevoAlquiler);
+
+        return unidadGuardada;
+    }
+
     private void cerrarHistorialActual(Unidad unidad) {
         List<HistorialContrato> historiales = historialContratoRepository.findByUnidadId(unidad.getId());
         historiales.stream()
@@ -135,6 +167,39 @@ public class UnidadService {
             .forEach(h -> {
                 h.setFechaFin(java.time.LocalDateTime.now());
                 historialContratoRepository.save(h);
+            });
+    }
+
+    private void actualizarHistorialContrato(Unidad unidad, Double nuevoMontoAlquiler) {
+        cerrarHistorialActual(unidad);
+
+        HistorialContrato historial = new HistorialContrato(
+            unidad,
+            unidad.getInquilino(),
+            nuevoMontoAlquiler,
+            unidad.getVencimientoContrato(),
+            java.time.LocalDateTime.now()
+        );
+        historialContratoRepository.save(historial);
+    }
+
+    private void sincronizarDeudaMensual(Unidad unidad, Double nuevoMontoAlquiler) {
+        String periodoActual = YearMonth.now().toString();
+        deudaRepository.findByUnidadIdAndPeriodoAndTipo(unidad.getId(), periodoActual, Deuda.TipoDeuda.ALQUILER)
+            .ifPresent(deuda -> {
+                if (deuda.getEstado() == Deuda.EstadoDeuda.CANCELADA) {
+                    return;
+                }
+
+                double montoPagado = valor(deuda.getMontoPagado());
+                double montoPendiente = redondear(Math.max(0.0, nuevoMontoAlquiler - montoPagado));
+
+                deuda.setMontoOriginal(nuevoMontoAlquiler);
+                deuda.setMontoPendiente(montoPendiente);
+                deuda.setEstado(montoPendiente <= 0.00001
+                    ? Deuda.EstadoDeuda.CANCELADA
+                    : (montoPagado > 0 ? Deuda.EstadoDeuda.PARCIAL : Deuda.EstadoDeuda.PENDIENTE));
+                deudaRepository.save(deuda);
             });
     }
 
@@ -152,5 +217,13 @@ public class UnidadService {
         Edificio edificio = unidad.getEdificio();
         unidadRepository.delete(unidad);
         actualizarCantidadInquilinos(edificio);
+    }
+
+    private double valor(Double number) {
+        return number == null ? 0.0 : number;
+    }
+
+    private double redondear(double value) {
+        return Math.round(value * 100.0) / 100.0;
     }
 }
