@@ -7,10 +7,6 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import com.gestion.tpbackend.entity.Contrato.MetodoPago;
 import com.gestion.tpbackend.entity.Unidad;
-import com.gestion.tpbackend.entity.Contrato;
-import com.gestion.tpbackend.entity.Contrato.TipoAplicacion;
-import com.gestion.tpbackend.entity.Contrato.EstadoPago;
-import com.gestion.tpbackend.scheduler.RecordatorioPagoScheduler;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -203,6 +199,35 @@ public class EmailService {
         text.append("Monto pendiente: $").append(deudaPendiente).append("\n\n");
         text.append("Aboná ahora: ").append(frontendUrl).append("/mis-edificios\n");
         text.append("\nEvitá inconvenientes realizando el pago hoy.");
+
+        enviar(email, subject, text.toString());
+    }
+
+    public void enviarAvisoAumentoAlquiler(String email, String nombre, Unidad unidad,
+                                           Double montoAnterior, Double montoAumento, Double montoNuevo,
+                                           Double porcentaje, String fechaEfecto, String adminNombre, Double deudaPendiente) {
+        String subject = "Aviso: Ajuste de tu alquiler - " + unidad.getEdificio().getNombre();
+        StringBuilder text = new StringBuilder();
+
+        text.append("Hola ").append(nombre).append(",\n\n");
+        text.append("Te informamos que el alquiler de tu unidad ")
+            .append(unidad.getNombre() != null ? unidad.getNombre() : "")
+            .append(" en el edificio \"")
+            .append(unidad.getEdificio().getNombre())
+            .append("\" fue actualizado.\n\n");
+
+        text.append("Resumen del ajuste:\n");
+        text.append("- Monto anterior: $").append(montoAnterior).append("\n");
+        text.append("- Aumento: $").append(montoAumento).append(" (").append(porcentaje).append("%)\n");
+        text.append("- Nuevo monto: $").append(montoNuevo).append("\n");
+        text.append("- Fecha de efecto: ").append(fechaEfecto).append("\n\n");
+
+        if (deudaPendiente != null) {
+            text.append("Saldo pendiente actual: $").append(deudaPendiente).append("\n\n");
+        }
+
+        text.append("Autorizado por: ").append(adminNombre).append("\n\n");
+        text.append("Si tenés dudas, respondé este correo o contactá al administrador.");
 
         enviar(email, subject, text.toString());
     }

@@ -10,7 +10,11 @@ import com.gestion.tpbackend.repository.DeudaRepository;
 import com.gestion.tpbackend.repository.HistorialContratoRepository;
 import com.gestion.tpbackend.repository.UnidadRepository;
 import com.gestion.tpbackend.repository.UsuarioRepository;
+import com.gestion.tpbackend.repository.NotificacionRepository;
+import com.gestion.tpbackend.entity.Notificacion;
 import java.time.YearMonth;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +31,8 @@ public class UnidadService {
     private final DeudaRepository deudaRepository;
     private final HistorialContratoRepository historialContratoRepository;
     private final DeudaService deudaService;
+    private final EmailService emailService;
+    private final NotificacionRepository notificacionRepository;
 
     public UnidadService(
         UnidadRepository unidadRepository,
@@ -35,6 +41,8 @@ public class UnidadService {
         DeudaRepository deudaRepository,
         HistorialContratoRepository historialContratoRepository,
         DeudaService deudaService
+        ,EmailService emailService,
+        NotificacionRepository notificacionRepository
     ) {
         this.unidadRepository = unidadRepository;
         this.edificioRepository = edificioRepository;
@@ -42,6 +50,8 @@ public class UnidadService {
         this.deudaRepository = deudaRepository;
         this.historialContratoRepository = historialContratoRepository;
         this.deudaService = deudaService;
+        this.emailService = emailService;
+        this.notificacionRepository = notificacionRepository;
     }
 
     public List<Unidad> obtenerTodas() {
@@ -156,6 +166,53 @@ public class UnidadService {
 
         actualizarHistorialContrato(unidadGuardada, nuevoAlquiler);
         sincronizarDeudaMensual(unidadGuardada, nuevoAlquiler);
+
+        // Preparar datos para notificación
+        Double montoAnterior = alquilerActual;
+        Double montoAumento = redondear(nuevoAlquiler - montoAnterior);
+        Double porcentaje = incrementoPorcentaje;
+        String fechaEfecto = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+
+        // Obtener datos de inquilino
+        Usuario inquilino = unidadGuardada.getInquilino();
+        Double deudaPendiente = deudaRepository.findByUnidadIdAndPeriodoAndTipo(unidadGuardada.getId(), YearMonth.now().toString(), Deuda.TipoDeuda.ALQUILER)
+            .map(Deuda::getMontoPendiente).orElse(0.0);
+
+        // Enviar email (si tiene email)
+        if (inquilino != null && inquilino.getEmail() != null && !inquilino.getEmail().isBlank()) {
+            try {
+                emailService.enviarAvisoAumentoAlquiler(
+                    inquilino.getEmail(),
+                    inquilino.getNombre(),
+                    unidadGuardada,
+                    montoAnterior,
+                    montoAumento,
+                    nuevoAlquiler,
+                    porcentaje,
+                    fechaEfecto,
+                    unidadGuardada.getEdificio().getPropietario() != null ? unidadGuardada.getEdificio().getPropietario().getNombre() : "Administrador",
+                    deudaPendiente
+                );
+
+                Notificacion notif = new Notificacion(inquilino, unidadGuardada,
+                    "Ajuste de alquiler: $" + montoAumento + " (" + porcentaje + "%)",
+                    "Tu alquiler cambió de $" + montoAnterior + " a $" + nuevoAlquiler + ". Fecha de efecto: " + fechaEfecto,
+                    String.format("{\"montoAnterior\":%s,\"montoAumento\":%s,\"montoNuevo\":%s,\"porcentaje\":%s}", montoAnterior, montoAumento, nuevoAlquiler, porcentaje),
+                    Notificacion.Canal.EMAIL
+                );
+                notif.setEstado(Notificacion.Estado.ENVIADO);
+                notificacionRepository.save(notif);
+            } catch (Exception ex) {
+                Notificacion notif = new Notificacion(inquilino, unidadGuardada,
+                    "Ajuste de alquiler: $" + montoAumento + " (" + porcentaje + "%)",
+                    "Intento de notificación fallido: " + ex.getMessage(),
+                    String.format("{\"error\":\"%s\"}", ex.getMessage()),
+                    Notificacion.Canal.EMAIL
+                );
+                notif.setEstado(Notificacion.Estado.ERROR);
+                notificacionRepository.save(notif);
+            }
+        }
 
         return unidadGuardada;
     }
