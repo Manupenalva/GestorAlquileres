@@ -13,6 +13,13 @@ public interface DeudaRepository extends JpaRepository<Deuda, Long> {
 
     Optional<Deuda> findByUnidadIdAndPeriodoAndTipo(Long unidadId, String periodo, TipoDeuda tipo);
 
+    List<Deuda> findByUnidadIdAndTipoAndEstadoInAndPeriodoLessThanOrderByPeriodoAscCreadaEnAsc(
+        Long unidadId,
+        TipoDeuda tipo,
+        List<EstadoDeuda> estados,
+        String periodo
+    );
+
     List<Deuda> findByInquilinoIdAndEdificioIdAndEstadoInOrderByPeriodoAscCreadaEnAsc(
         Long inquilinoId,
         Long edificioId,
