@@ -334,6 +334,29 @@ export default function App() {
     await loadBuildings();
   }, [loadBuildings]);
 
+  const handleRenewContract = useCallback(async (unitId: string, nuevoVencimiento: string, nuevoMonto: number) => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      throw new Error('Debes iniciar sesión para renovar el contrato');
+    }
+
+    const response = await fetch(`${API_BASE}/api/unidades/${unitId}/renovar-contrato`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ nuevoVencimiento, nuevoMontoAlquiler: nuevoMonto }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'No se pudo renovar el contrato');
+    }
+
+    await loadBuildings();
+  }, [loadBuildings]);
+
   const handleRegisterPayment = useCallback(async (paymentData: Omit<Payment, 'id' | 'date'>) => {
     const pagosRes = await fetch(`${API_BASE}/api/pagos/edificio/${paymentData.buildingId}`);
     if (!pagosRes.ok) {
@@ -375,6 +398,7 @@ export default function App() {
     onAddExpense: handleAddExpense,
     onRegisterPayment: handleRegisterPayment,
     onIncreaseRent: handleIncreaseRent,
+    onRenewContract: handleRenewContract,
   }), [
     buildings,
     buildingsLoading,
@@ -388,6 +412,7 @@ export default function App() {
     handleAddExpense,
     handleRegisterPayment,
     handleIncreaseRent,
+    handleRenewContract,
   ]);
 
   const appContent = (

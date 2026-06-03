@@ -9,6 +9,7 @@ import { AddTenantForm } from '../components/AddTenantForm';
 import { AddExpenseForm } from '../components/AddExpenseForm';
 import { RegisterPaymentDialog } from '../components/RegisterPaymentDialog';
 import { IncreaseRentDialog } from '../components/IncreaseRentDialog';
+import { RenewContractDialog } from '../components/RenewContractDialog';
 import { TenantHistoryDialog } from '../components/TenantHistoryDialog';
 import { DebtDistributionSection } from '../components/DebtDistributionSection';
 import {
@@ -42,6 +43,7 @@ interface BuildingDetailProps {
   onAddExpense: (expense: NewExpenseInput) => Promise<void>;
   onRegisterPayment: (payment: Omit<Payment, 'id' | 'date'>) => Promise<void>;
   onIncreaseRent: (unitId: string, incrementPercentage: number) => Promise<void>;
+  onRenewContract: (unitId: string, nuevoVencimiento: string, nuevoMonto: number) => Promise<void>;
 }
 
 type TenantDebtSummary = {
@@ -59,6 +61,7 @@ export function BuildingDetail({
   onAddExpense,
   onRegisterPayment,
   onIncreaseRent,
+  onRenewContract,
 }: BuildingDetailProps) {
   const navigate = useNavigate();
   const [deleting, setDeleting] = useState(false);
@@ -280,6 +283,13 @@ export function BuildingDetail({
                           tenantName={`${tenant.firstName} ${tenant.lastName}`}
                           currentRentAmount={tenant.rentAmount}
                           onIncrease={onIncreaseRent}
+                        />
+                        <RenewContractDialog
+                          unitId={tenant.id}
+                          tenantName={`${tenant.firstName} ${tenant.lastName}`}
+                          currentVencimiento={tenant.contractExpirationDate || 'N/A'}
+                          currentRentAmount={tenant.rentAmount}
+                          onRenew={onRenewContract}
                         />
                         <RegisterPaymentDialog
                           tenantId={tenant.id}

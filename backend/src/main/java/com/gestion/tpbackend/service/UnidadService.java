@@ -217,6 +217,34 @@ public class UnidadService {
         return unidadGuardada;
     }
 
+    @Transactional
+    public Unidad renovarContrato(Long unidadId, String nuevoVencimiento, Double nuevoMontoAlquiler) {
+        Unidad unidad = obtenerPorId(unidadId);
+        if (unidad.getInquilino() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La unidad no tiene un inquilino asignado");
+        }
+
+        // Cerrar historial previo
+        cerrarHistorialActual(unidad);
+
+        // Actualizar datos de la unidad
+        unidad.setVencimientoContrato(nuevoVencimiento);
+        unidad.setMontoAlquiler(nuevoMontoAlquiler);
+        Unidad unidadGuardada = unidadRepository.save(unidad);
+
+        // Crear nuevo historial
+        HistorialContrato historial = new HistorialContrato(
+            unidadGuardada,
+            unidadGuardada.getInquilino(),
+            nuevoMontoAlquiler,
+            nuevoVencimiento,
+            java.time.LocalDateTime.now()
+        );
+        historialContratoRepository.save(historial);
+
+        return unidadGuardada;
+    }
+
     private void cerrarHistorialActual(Unidad unidad) {
         List<HistorialContrato> historiales = historialContratoRepository.findByUnidadId(unidad.getId());
         historiales.stream()
