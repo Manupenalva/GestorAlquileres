@@ -33,6 +33,10 @@ public class EdificioService {
         return edificioRepository.findAll();
     }
 
+    public List<Edificio> obtenerPorPropietario(String email) {
+        return edificioRepository.findByPropietarioEmail(email);
+    }
+
     // MODIFICADO: Ahora valida inquilinos al buscar por ID (Vista del Admin)
     public Edificio obtenerPorId(Long id) {
         Edificio edificio = edificioRepository.findById(id)

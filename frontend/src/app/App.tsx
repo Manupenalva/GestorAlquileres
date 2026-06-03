@@ -130,8 +130,10 @@ export default function App() {
     setBuildingsLoading(true);
 
     try {
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_BASE}/api/edificios`, {
         signal,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
 
       if (!response.ok) {
