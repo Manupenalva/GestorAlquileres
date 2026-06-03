@@ -19,9 +19,14 @@ export const DashboardProvider: React.FC<{
 }> = ({ children, buildings, tenants, expenses, payments }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
+  const user = useMemo(() => {
+    const rawAuthUser = localStorage.getItem('auth_user');
+    return rawAuthUser ? JSON.parse(rawAuthUser) : null;
+  }, []);
+
   const metrics = useMemo(() => {
-    return dashboardService.aggregatePortfolioData(buildings, tenants, expenses, payments);
-  }, [buildings, tenants, expenses, payments]);
+    return dashboardService.aggregatePortfolioData(buildings, tenants, expenses, payments, user);
+  }, [buildings, tenants, expenses, payments, user]);
 
   return (
     <DashboardContext.Provider value={{ metrics, isExpanded, setIsExpanded }}>
