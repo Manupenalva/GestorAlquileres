@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router';
-import { Building, Tenant, Payment, NewExpenseInput } from '../types';
+import { Building, Tenant, Payment, NewExpenseInput} from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -8,7 +8,10 @@ import { Input } from '../components/ui/input';
 import { AddTenantForm } from '../components/AddTenantForm';
 import { AddExpenseForm } from '../components/AddExpenseForm';
 import { RegisterPaymentDialog } from '../components/RegisterPaymentDialog';
+import { IncreaseRentDialog } from '../components/IncreaseRentDialog';
+import { RenewContractDialog } from '../components/RenewContractDialog';
 import { TenantHistoryDialog } from '../components/TenantHistoryDialog';
+import { DebtDistributionSection } from '../components/DebtDistributionSection';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,7 +23,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '../components/ui/alert-dialog';
-import { ArrowLeft, Building2, MapPin, Home, DollarSign, BarChart3, Phone, Mail, Calendar, CheckCircle2, XCircle, Users, Trash2, Search } from 'lucide-react';
+import { 
+  ArrowLeft, Building2, MapPin, Home, DollarSign, BarChart3, 
+  Phone, Mail, Calendar, CheckCircle2, XCircle, Users, Trash2, 
+  Search, ShieldAlert, ShieldCheck 
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
@@ -33,8 +40,10 @@ interface BuildingDetailProps {
   onDeleteBuilding: (buildingId: number) => Promise<void>;
   onAddTenant: (tenant: Omit<Tenant, 'id'>) => Promise<void>;
   onRemoveTenant: (tenantId: string) => Promise<void>;
-  onAddExpense: (expense: any) => void;
+  onAddExpense: (expense: NewExpenseInput) => Promise<void>;
   onRegisterPayment: (payment: Omit<Payment, 'id' | 'date'>) => Promise<void>;
+  onIncreaseRent: (unitId: string, incrementPercentage: number) => Promise<void>;
+  onRenewContract: (unitId: string, nuevoVencimiento: string, nuevoMonto: number) => Promise<void>;
 }
 
 type TenantDebtSummary = {
@@ -51,24 +60,21 @@ export function BuildingDetail({
   onRemoveTenant,
   onAddExpense,
   onRegisterPayment,
+  onIncreaseRent,
+  onRenewContract,
 }: BuildingDetailProps) {
   const navigate = useNavigate();
   const [deleting, setDeleting] = useState(false);
   const [tenantSearch, setTenantSearch] = useState('');
   const [tenantDebtById, setTenantDebtById] = useState<Record<string, number>>({});
   const { id } = useParams();
+  
   const building = buildings.find(b => String(b.id) === id);
   const buildingId = building ? String(building.id) : id ?? '';
-  const buildingTenants = tenants.filter(t => t.buildingId === buildingId);
-  const buildingTenantDebtKey = buildingTenants
-    .map((tenant) => `${tenant.id}:${tenant.userId ?? ''}`)
-    .join('|');
+  const buildingTenants = useMemo(() => tenants.filter(t => t.buildingId === buildingId), [tenants, buildingId]);
+  
   const normalizedTenantSearch = tenantSearch.trim().toLowerCase();
   const filteredTenants = buildingTenants.filter((tenant) => {
-    if (!normalizedTenantSearch) {
-      return true;
-    }
-
     const fullName = `${tenant.firstName} ${tenant.lastName}`.toLowerCase();
     return fullName.includes(normalizedTenantSearch);
   });
@@ -79,166 +85,95 @@ export function BuildingDetail({
         setTenantDebtById({});
         return;
       }
-
       try {
         const results = await Promise.all(
           buildingTenants.map(async (tenant) => {
             const userId = tenant.userId;
-            if (!userId) {
-              return [tenant.id, 0] as const;
-            }
-
+            if (!userId) return [tenant.id, 0] as const;
             const response = await fetch(`${API_BASE}/api/deudas/inquilino/${userId}/edificio/${building.id}/total`);
-            if (!response.ok) {
-              return [tenant.id, 0] as const;
-            }
-
+            if (!response.ok) return [tenant.id, 0] as const;
             const data = (await response.json()) as TenantDebtSummary;
             return [tenant.id, Number(data.totalPendiente) || 0] as const;
           }),
         );
-
         setTenantDebtById(Object.fromEntries(results));
       } catch {
         setTenantDebtById({});
       }
     };
-
     loadTenantDebts();
-  }, [building?.id, buildingTenantDebtKey]);
-
-  if (!building && deleting) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <Card>
-          <CardContent className="py-16 text-center text-muted-foreground">
-            Eliminando edificio...
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  }, [building?.id, buildingTenants, payments]); // Se recarga cuando cambian los pagos
 
   const handleDeleteBuilding = async () => {
-    if (!building || deleting) {
-      return;
-    }
-
+    if (!building || deleting) return;
     try {
       setDeleting(true);
       await onDeleteBuilding(building.id);
       toast.success('Edificio eliminado correctamente');
       navigate('/', { replace: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'No se pudo eliminar el edificio');
+      toast.error('No se pudo eliminar el edificio');
       setDeleting(false);
     }
   };
 
-  if (!building && buildingsLoading) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <Card>
-          <CardContent className="py-16 text-center text-muted-foreground">
-            Cargando edificio...
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (!building) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <Card>
-          <CardContent className="py-16 text-center">
-            <p className="text-muted-foreground">Edificio no encontrado</p>
-            <Link to="/">
-              <Button variant="outline" className="mt-4">
-                Volver al inicio
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const getCurrentMonthPaymentStatus = (tenantId: string, rentAmount: number) => {
+  // --- LÓGICA DE ESTADO ACTUALIZADA ---
+  const getCurrentMonthPaymentStatus = (tenantId: string, tenantDebt: number) => {
     const currentMonth = new Date().toISOString().slice(0, 7);
-    const monthlyPayments = payments.filter(p => p.tenantId === tenantId && p.month === currentMonth);
-    const confirmedAmount = monthlyPayments
-      .filter((p) => p.status !== 'PENDIENTE')
-      .reduce((sum, p) => sum + p.amount, 0);
-    const hasPending = monthlyPayments.some((p) => p.status === 'PENDIENTE');
-    const remaining = Math.max(0, rentAmount - confirmedAmount);
+    
+    // Obtenemos todos los pagos confirmados del mes para el historial visual
+    const monthlyPayments = payments.filter(
+        p => p.tenantId === tenantId && p.month === currentMonth && p.status !== 'PENDIENTE'
+    );
+    
+    const totalPagadoMes = monthlyPayments.reduce((sum, p) => sum + p.amount, 0);
 
     let status: 'PAGADO' | 'PARCIAL' | 'PENDIENTE' = 'PENDIENTE';
-    if (remaining <= 0 && confirmedAmount > 0) {
-      status = 'PAGADO';
-    } else if (confirmedAmount > 0) {
-      status = 'PARCIAL';
+
+    // Si la deuda es 0 o menos, está PAGADO
+    if (tenantDebt <= 0 && totalPagadoMes > 0) {
+        status = 'PAGADO';
+    } 
+    // Si pagó algo pero todavía tiene deuda, es PARCIAL (Pendiente de completar)
+    else if (totalPagadoMes > 0 && tenantDebt > 0) {
+        status = 'PARCIAL';
+    }
+    // Si no pagó nada en el mes
+    else {
+        status = 'PENDIENTE';
     }
 
-    return {
-      monthlyPayments,
-      confirmedAmount,
-      hasPending,
-      remaining,
-      status,
-    };
+    return { monthlyPayments, status };
   };
+
+  if (!building && buildingsLoading) return <div className="p-10 text-center text-muted-foreground">Cargando edificio...</div>;
+  if (!building) return <div className="p-10 text-center text-muted-foreground">Edificio no encontrado</div>;
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
-        <Link to="/">
-          <Button variant="ghost" className="gap-2 mb-4">
-            <ArrowLeft className="size-4" />
-            Volver
-          </Button>
-        </Link>
-        
+        <Link to="/"><Button variant="ghost" className="gap-2 mb-4"><ArrowLeft className="size-4" />Volver</Button></Link>
         <div className="flex items-start justify-between flex-wrap gap-4">
           <div>
-            <h1 className="mb-2 flex items-center gap-2">
-              <Building2 className="size-8" />
-              {building.nombre}
-            </h1>
-            <p className="text-muted-foreground flex items-center gap-2">
-              <MapPin className="size-4" />
-              {building.direccion}
-            </p>
+            <h1 className="mb-2 flex items-center gap-2 font-black text-3xl"><Building2 className="size-8" />{building.nombre}</h1>
+            <p className="text-muted-foreground flex items-center gap-2 text-sm"><MapPin className="size-4" />{building.direccion}</p>
           </div>
-          
           <div className="flex gap-2 flex-wrap">
             <AddTenantForm buildingId={buildingId} onAdd={onAddTenant} />
             <AddExpenseForm buildingId={buildingId} onAdd={onAddExpense} />
-            <Link to={`/building/${buildingId}/report`}>
-              <Button variant="default" className="gap-2">
-                <BarChart3 className="size-4" />
-                Reportes Del Edificio
-              </Button>
-            </Link>
+            <Link to={`/building/${buildingId}/report`}><Button className="gap-2 font-bold"><BarChart3 className="size-4" />Reportes</Button></Link>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" className="gap-2" disabled={deleting}>
-                  <Trash2 className="size-4" />
-                  Eliminar Edificio
-                </Button>
+                <Button variant="destructive" className="gap-2 font-bold"><Trash2 className="size-4" />Eliminar Edificio</Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Eliminar edificio</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Esta accion eliminara el edificio {building.nombre}. Esta seguro que desea continuar?
-                  </AlertDialogDescription>
+                  <AlertDialogTitle>¿Estás completamente seguro?</AlertDialogTitle>
+                  <AlertDialogDescription>Esta acción eliminará el edificio y todos sus registros asociados.</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDeleteBuilding} disabled={deleting}>
-                    {deleting ? 'Eliminando...' : 'Si, eliminar'}
-                  </AlertDialogAction>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction className="bg-destructive" onClick={handleDeleteBuilding}>Eliminar</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
@@ -247,216 +182,142 @@ export function BuildingDetail({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Home className="size-4" />
-              Departamentos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl">{building.cantidadDepartamentos ?? 0}</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Users className="size-4" />
-              Inquilinos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl">{building.cantidadInquilinos ?? 0}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <DollarSign className="size-4" />
-              Expensas Base
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl">
-              ${(building.expensasBase ?? 0).toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <DollarSign className="size-4" />
-              Gastos Extra
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl">
-              ${(building.gastosExtra ?? 0).toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Departamentos</CardTitle></CardHeader><CardContent><div className="text-2xl font-black">{building.cantidadDepartamentos || 0}</div></CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Inquilinos</CardTitle></CardHeader><CardContent><div className="text-2xl font-black">{building.cantidadInquilinos || 0}</div></CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Expensas Base</CardTitle></CardHeader><CardContent><div className="text-2xl font-black">${(building.expensasBase || 0).toLocaleString()}</div></CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Gastos Extra</CardTitle></CardHeader><CardContent><div className="text-2xl font-black">${(building.gastosExtra || 0).toLocaleString()}</div></CardContent></Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Inquilinos</CardTitle>
-          <div className="relative mt-3">
+      {/* Sección de Distribución de Deuda */}
+      <div className="mb-8">
+        <DebtDistributionSection
+          tenants={buildingTenants.map((tenant) => ({
+            id: tenant.id,
+            name: `${tenant.firstName} ${tenant.lastName}`,
+            floor: tenant.floor,
+            apartment: tenant.apartmentNumber,
+            debt: tenantDebtById[tenant.id] || 0,
+          }))}
+        />
+      </div>
+
+      <Card className="border-none shadow-none bg-transparent">
+        <CardHeader className="px-0">
+          <CardTitle className="text-xl font-black">Lista de Inquilinos</CardTitle>
+          <div className="relative mt-2">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={tenantSearch}
-              onChange={(e) => setTenantSearch(e.target.value)}
-              placeholder="Buscar inquilino por nombre..."
-              className="pl-10"
-            />
+            <Input value={tenantSearch} onChange={(e) => setTenantSearch(e.target.value)} placeholder="Buscar por nombre o apellido..." className="pl-10 bg-white" />
           </div>
         </CardHeader>
-        <CardContent>
-          {buildingTenants.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No hay inquilinos registrados en este edificio
-            </div>
-          ) : filteredTenants.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No se encontraron inquilinos para "{tenantSearch}"
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {filteredTenants.map((tenant) => {
-                const paymentStatus = getCurrentMonthPaymentStatus(tenant.id, tenant.rentAmount);
-                const isPaid = paymentStatus.status === 'PAGADO';
-                const isPartial = paymentStatus.status === 'PARCIAL';
-                const tenantDebt = tenantDebtById[tenant.id] || 0;
-                const totalDue = tenant.rentAmount + tenantDebt;
-                
-                return (
-                  <Card key={tenant.id}>
-                    <CardContent className="pt-6">
-                      <div className="flex items-start justify-between flex-wrap gap-4">
-                        <div className="flex-1 min-w-[200px]">
-                          <div className="flex items-center gap-3 mb-3">
-                            <div>
-                              <h3 className="flex items-center gap-2">
-                                {tenant.firstName} {tenant.lastName}
-                                {isPaid ? (
-                                  <Badge className="gap-1 bg-green-500">
-                                    <CheckCircle2 className="size-3" />
-                                    Pagado
-                                  </Badge>
-                                ) : isPartial ? (
-                                  <Badge className="gap-1 bg-amber-500 text-white">
-                                    <CheckCircle2 className="size-3" />
-                                    Parcial
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="destructive" className="gap-1">
-                                    <XCircle className="size-3" />
-                                    Pendiente
-                                  </Badge>
-                                )}
-                              </h3>
-                              <p className="text-sm text-muted-foreground">
-                                Piso {tenant.floor}, Dpto. {tenant.apartmentNumber}
-                              </p>
-                            </div>
-                          </div>
-                          
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                            <div className="flex items-center gap-2">
-                              <Mail className="size-4 text-muted-foreground" />
-                              <span>{tenant.email}</span>
-                            </div>
-                            {tenant.phone && (
-                              <div className="flex items-center gap-2">
-                                <Phone className="size-4 text-muted-foreground" />
-                                <span>{tenant.phone}</span>
-                              </div>
-                            )}
-                            <div className="flex items-center gap-2">
-                              <DollarSign className="size-4 text-muted-foreground" />
-                              <span>
-                                Alquiler: ${tenant.rentAmount.toLocaleString()} | Deuda pendiente: ${tenantDebt.toLocaleString()}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <DollarSign className="size-4 text-muted-foreground" />
-                              <span>
-                                Total a pagar: ${totalDue.toLocaleString()}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Calendar className="size-4 text-muted-foreground" />
-                              <span>Paga el día {tenant.paymentDayOfMonth}</span>
-                            </div>
-                            {tenant.contractExpirationDate && (
-                              <div className="flex items-center gap-2 col-span-2">
-                                <Calendar className="size-4 text-muted-foreground" />
-                                <span>Vence: {new Date(tenant.contractExpirationDate).toLocaleDateString()}</span>
-                              </div>
-                            )}
+        <CardContent className="px-0">
+          <div className="space-y-4">
+            {filteredTenants.map((tenant) => {
+              const tenantDebt = tenantDebtById[tenant.id] || 0;
+              const paymentStatus = getCurrentMonthPaymentStatus(tenant.id, tenantDebt);
+              
+              const hoy = new Date();
+              const fechaVencimiento = tenant.contractExpirationDate ? new Date(tenant.contractExpirationDate) : null;
+              const usuarioActivo = tenant.activo !== false && (!fechaVencimiento || fechaVencimiento > hoy); 
+              
+              const isPaid = paymentStatus.status === 'PAGADO';
+              const isPartial = paymentStatus.status === 'PARCIAL';
+
+              return (
+                <Card key={tenant.id} className={`transition-all ${!usuarioActivo ? 'opacity-70 grayscale-[0.5] bg-slate-50 border-red-200' : 'hover:shadow-md'}`}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-start justify-between flex-wrap gap-4">
+                      <div className="flex-1 min-w-[200px]">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div>
+                            <h3 className="text-lg font-black flex items-center gap-2 text-slate-900">
+                              {tenant.firstName} {tenant.lastName}
+                              
+                              {!usuarioActivo ? (
+                                <Badge variant="destructive" className="gap-1 font-black bg-red-600">
+                                  <ShieldAlert className="size-3" /> Inactivo / Vencido
+                                </Badge>
+                              ) : (
+                                <div className="flex gap-2">
+                                    <Badge className="gap-1 bg-green-100 text-green-700 border-green-200 font-bold">
+                                    <ShieldCheck className="size-3" /> Activo
+                                    </Badge>
+                                    {isPaid ? (
+                                    <Badge className="gap-1 bg-green-500 font-bold text-white"><CheckCircle2 className="size-3" />Pagado</Badge>
+                                    ) : isPartial ? (
+                                    <Badge className="gap-1 bg-amber-500 text-white font-bold"><CheckCircle2 className="size-3" />Parcial</Badge>
+                                    ) : (
+                                    <Badge variant="secondary" className="gap-1 font-bold"><XCircle className="size-3" />Pendiente</Badge>
+                                    )}
+                                </div>
+                              )}
+                            </h3>
+                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-tight">Piso {tenant.floor}, Unidad {tenant.apartmentNumber}</p>
                           </div>
                         </div>
                         
-                        <div className="flex flex-col gap-2">
-                          <TenantHistoryDialog
-                            tenantId={tenant.userId || 0}
-                            tenantName={`${tenant.firstName} ${tenant.lastName}`}
-                          />
-                          <RegisterPaymentDialog
-                            tenantId={tenant.id}
-                            tenantName={`${tenant.firstName} ${tenant.lastName}`}
-                            buildingId={buildingId}
-                            rentAmount={tenant.rentAmount}
-                            onRegister={onRegisterPayment}
-                          />
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10">
-                                <Trash2 className="size-4 mr-2" />
-                                Quitar Inquilino
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Quitar inquilino</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Esta acción eliminará la relación del inquilino {tenant.firstName} con este departamento. El usuario seguirá existiendo en el sistema. ¿Desea continuar?
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={async () => {
-                                    try {
-                                      await onRemoveTenant(tenant.id);
-                                      toast.success('Inquilino quitado correctamente');
-                                    } catch (error) {
-                                      toast.error(error instanceof Error ? error.message : 'No se pudo quitar al inquilino');
-                                    }
-                                  }}
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                >
-                                  Quitar
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                          {paymentStatus.monthlyPayments.length > 0 && (
-                            <p className="text-xs text-muted-foreground text-center">
-                              Cobrado mes: ${paymentStatus.confirmedAmount.toLocaleString()}
-                              {paymentStatus.hasPending ? ' | Hay pagos pendientes de confirmacion' : ''}
-                            </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                          <div className="flex items-center gap-2 text-slate-600"><Mail className="size-4" /><span>{tenant.email}</span></div>
+                          {tenant.phone && <div className="flex items-center gap-2 text-slate-600"><Phone className="size-4" /><span>{tenant.phone}</span></div>}
+                          <div className="flex items-center gap-2 text-slate-700 font-medium">
+                            <DollarSign className="size-4 text-green-600" />
+                            <span>
+                                Alquiler: <strong>${tenant.rentAmount.toLocaleString()}</strong> | 
+                                Deuda: <strong className={tenantDebt > 0 ? 'text-red-600' : 'text-green-600'}>
+                                    ${tenantDebt.toLocaleString()}
+                                </strong>
+                            </span>
+                          </div>
+                          {tenant.contractExpirationDate && (
+                            <div className={`flex items-center gap-2 col-span-2 font-bold ${!usuarioActivo ? 'text-red-600' : 'text-slate-500'}`}>
+                              <Calendar className="size-4" />
+                              <span>{usuarioActivo ? 'Vencimiento Contrato: ' : 'Contrato expirado el: '} {new Date(tenant.contractExpirationDate).toLocaleDateString()}</span>
+                            </div>
                           )}
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
+                      
+                      <div className="flex flex-col gap-2 min-w-[140px]">
+                        <TenantHistoryDialog tenantId={tenant.userId || 0} tenantName={`${tenant.firstName} ${tenant.lastName}`} />
+                        <IncreaseRentDialog
+                          unitId={tenant.id}
+                          tenantName={`${tenant.firstName} ${tenant.lastName}`}
+                          currentRentAmount={tenant.rentAmount}
+                          onIncrease={onIncreaseRent}
+                        />
+                        <RenewContractDialog
+                          unitId={tenant.id}
+                          tenantName={`${tenant.firstName} ${tenant.lastName}`}
+                          currentVencimiento={tenant.contractExpirationDate || 'N/A'}
+                          currentRentAmount={tenant.rentAmount}
+                          onRenew={onRenewContract}
+                        />
+                        <RegisterPaymentDialog
+                          tenantId={tenant.id}
+                          tenantName={`${tenant.firstName} ${tenant.lastName}`}
+                          buildingId={buildingId}
+                          rentAmount={tenant.rentAmount}
+                          onRegister={onRegisterPayment}
+                          disabled={!usuarioActivo} 
+                        />
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="sm" className="text-red-500 hover:bg-red-50 font-bold"><Trash2 className="size-4 mr-2" />Quitar Inquilino</Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader><AlertDialogTitle>¿Quitar inquilino?</AlertDialogTitle></AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction className="bg-red-600" onClick={() => onRemoveTenant(tenant.id)}>Quitar</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
         </CardContent>
       </Card>
     </div>

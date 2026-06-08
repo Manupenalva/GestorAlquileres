@@ -29,6 +29,7 @@ public class Deuda {
     public enum EstadoDeuda {
         PENDIENTE,
         PARCIAL,
+        ARRASTRADA,
         CANCELADA
     }
 

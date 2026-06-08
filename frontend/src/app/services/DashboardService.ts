@@ -1,4 +1,4 @@
-import { Building, Tenant, Expense, Payment } from '../types';
+import { Building, Tenant, Expense, Payment, UserSummary } from '../types';
 
 export interface DashboardMetrics {
   totalRevenue: number;
@@ -23,26 +23,38 @@ class DashboardService {
     buildings: Building[],
     tenants: Tenant[],
     expenses: Expense[],
-    payments: Payment[]
+    payments: Payment[],
+    user: UserSummary | null
   ): DashboardMetrics {
+    // 0. Filter buildings by owner if user is ADMIN
+    const isAdmin = user?.rol === 'ADMIN';
+    const filteredBuildings = isAdmin && user
+      ? buildings.filter(b => b.propietario?.id === user.id)
+      : buildings;
+
+    const buildingIds = new Set(filteredBuildings.map(b => String(b.id)));
+
+    // Filter dependent data
+    const filteredTenants = tenants.filter(t => buildingIds.has(t.buildingId));
+    const filteredExpenses = expenses.filter(e => buildingIds.has(e.buildingId));
+    const filteredPayments = payments.filter(p => buildingIds.has(p.buildingId));
+
     const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth() + 1;
 
     // 1. Calculate Occupancy
-    const totalUnits = buildings.reduce((sum, b) => sum + (b.cantidadDepartamentos || 0), 0);
-    const occupiedUnits = tenants.length;
+    const totalUnits = filteredBuildings.reduce((sum, b) => sum + (b.cantidadDepartamentos || 0), 0);
+    const occupiedUnits = filteredTenants.length;
     const occupancyRate = totalUnits > 0 ? (occupiedUnits / totalUnits) * 100 : 0;
 
-    // 2. Calculate Financials (All Time or Current Period - let's do All Time for global, or filtered by year)
-    // For a dashboard, let's focus on the Current Year Trends
-    const totalRevenue = payments
+    // 2. Calculate Financials
+    const totalRevenue = filteredPayments
       .filter(p => p.status !== 'PENDIENTE')
       .reduce((sum, p) => sum + p.amount, 0);
-    const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
     const netProfit = totalRevenue - totalExpenses;
 
     // 3. Expenses by Type
-    const expensesByTypeMap = expenses.reduce((acc, exp) => {
+    const expensesByTypeMap = filteredExpenses.reduce((acc, exp) => {
       acc[exp.type] = (acc[exp.type] || 0) + exp.amount;
       return acc;
     }, {} as Record<string, number>);
@@ -52,8 +64,8 @@ class DashboardService {
       amount,
     }));
 
-    // 4. Monthly Trends (Last 12 months)
-    const monthlyTrends = this.calculateMonthlyTrends(payments, expenses, currentYear);
+    // 4. Monthly Trends
+    const monthlyTrends = this.calculateMonthlyTrends(filteredPayments, filteredExpenses, currentYear);
 
     return {
       totalRevenue,
@@ -66,6 +78,7 @@ class DashboardService {
       expensesByType,
     };
   }
+// ...
 
   private calculateMonthlyTrends(payments: Payment[], expenses: Expense[], year: number) {
     const months = [

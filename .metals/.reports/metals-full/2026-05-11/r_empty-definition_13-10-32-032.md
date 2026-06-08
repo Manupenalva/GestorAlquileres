@@ -1,3 +1,14 @@
+error id: file://<WORKSPACE>/backend/src/main/java/com/gestion/tpbackend/controller/ContratoController.java:
+file://<WORKSPACE>/backend/src/main/java/com/gestion/tpbackend/controller/ContratoController.java
+empty definition using pc, found symbol in pc: 
+empty definition using semanticdb
+empty definition using fallback
+non-local guesses:
+
+offset: 3978
+uri: file://<WORKSPACE>/backend/src/main/java/com/gestion/tpbackend/controller/ContratoController.java
+text:
+```scala
 package com.gestion.tpbackend.controller;
 
 import com.gestion.tpbackend.entity.Contrato;
@@ -81,6 +92,13 @@ public class ContratoController {
         return ResponseEntity.ok(contratoService.marcarComoPagado(id, monto));
     }
 
+    public record PagoRequest(Long edificioId, Double monto, String metodo, String nota) {}
     public record ConfirmarPagoRequest(Double monto) {}
-    public record PagoRequest(Long edificioId, Double monto, String metodo, String nota, String estado) {}
+    @@public record PagoRequest(Long edificioId, Double monto, String metodo, String nota, String estado) {}
 }
+```
+
+
+#### Short summary: 
+
+empty definition using pc, found symbol in pc: 

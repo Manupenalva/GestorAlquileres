@@ -4,16 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.ArrayList;
 import java.util.List;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.Table;
-import jakarta.persistence.Transient;
+import java.time.LocalDateTime;
+import jakarta.persistence.*;
 
 @Entity
 @Table(name = "usuarios")
@@ -36,6 +28,12 @@ public class Usuario {
     @Column(name = "contrasena", nullable = false, length = 255)
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String contrasena;
+
+    @Column(nullable = false)
+    private boolean activo = true; 
+
+    @Column(name = "fecha_fin_contrato")
+    private LocalDateTime fechaFinContrato;
 
     @OneToMany(mappedBy = "propietario")
     @JsonIgnore
@@ -104,5 +102,21 @@ public class Usuario {
 
     public void setClaveSecreta(String claveSecreta) {
         this.claveSecreta = claveSecreta;
+    }
+
+    public boolean isActivo() {
+        return activo;
+    }
+
+    public void setActivo(boolean activo) {
+        this.activo = activo;
+    }
+
+    public LocalDateTime getFechaFinContrato() {
+        return fechaFinContrato;
+    }
+
+    public void setFechaFinContrato(LocalDateTime fechaFinContrato) {
+        this.fechaFinContrato = fechaFinContrato;
     }
 }

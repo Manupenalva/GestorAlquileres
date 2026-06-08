@@ -46,11 +46,11 @@ public class DeudaService {
         }
 
         String period = periodo.toString();
-        asegurarDeudaSiNoExiste(unidad, period, TipoDeuda.ALQUILER, valor(unidad.getMontoAlquiler()), "Alquiler mensual");
+        asegurarDeudaMensualRodante(unidad, period, TipoDeuda.ALQUILER, valor(unidad.getMontoAlquiler()), "Alquiler mensual");
 
         double porcentaje = porcentajeNormalizado(unidad.getPorcentajeDepartamento());
         double expensasBase = valor(unidad.getEdificio().getExpensasBase()) * porcentaje;
-        asegurarDeudaSiNoExiste(unidad, period, TipoDeuda.EXPENSAS_BASE, expensasBase, "Expensas base");
+        asegurarDeudaMensualRodante(unidad, period, TipoDeuda.EXPENSAS_BASE, expensasBase, "Expensas base");
 
         asegurarDeudaExtraAcumulada(unidad.getEdificio(), periodo);
     }
@@ -68,7 +68,6 @@ public class DeudaService {
             return;
         }
 
-        // Distribuir el monto entre la cantidad total de departamentos del edificio
         Integer cantidadDepts = edificio.getCantidadDepartamentos();
         int n = (cantidadDepts != null && cantidadDepts > 0) ? cantidadDepts : unidadesOcupadas.size();
         double parteBase = redondear(monto / n);
@@ -76,12 +75,10 @@ public class DeudaService {
         double sumaAsignada = 0.0;
 
         for (int i = 0; i < n; i++) {
-            // Asignamos la parte base a cada unidad; ajustaremos el último con el resto
             partes.add(parteBase);
             sumaAsignada = redondear(sumaAsignada + parteBase);
         }
 
-        // Ajustar diferencia por redondeo en la última unidad
         double diferencia = redondear(monto - sumaAsignada);
         if (Math.abs(diferencia) >= 0.01) {
             int last = partes.size() - 1;
@@ -117,18 +114,14 @@ public class DeudaService {
         List<Deuda> deudasAbiertas = deudaRepository
             .findByInquilinoIdAndEdificioIdAndEstadoInOrderByPeriodoAscCreadaEnAsc(inquilinoId, edificioId, ESTADOS_ABIERTOS);
 
+        // Si no hay deudas, no lanzamos error, solo retornamos que no se aplicó nada
         if (deudasAbiertas.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No hay deuda pendiente para aplicar el pago");
+            return new ResultadoAplicacion(0.0, 0.0, new ArrayList<>());
         }
 
-        double totalPendiente = deudasAbiertas.stream().mapToDouble(d -> valor(d.getMontoPendiente())).sum();
-        if (monto - totalPendiente > 0.00001) {
-            throw new ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "El monto supera la deuda pendiente actual del inquilino"
-            );
-        }
+        double totalPendienteOriginal = deudasAbiertas.stream().mapToDouble(d -> valor(d.getMontoPendiente())).sum();
 
+        // ORDENAMIENTO: Antigüedad -> Tipo (Alquiler primero) -> Fecha creación
         deudasAbiertas.sort(Comparator
             .comparing(Deuda::getPeriodo)
             .thenComparing(d -> prioridadTipo(d.getTipo()))
@@ -147,6 +140,7 @@ public class DeudaService {
                 continue;
             }
 
+            // Aplicamos lo que podemos (o el total de la deuda o lo que queda del pago)
             double aplicar = Math.min(restante, pendiente);
             deuda.registrarPago(aplicar);
             deudaRepository.save(deuda);
@@ -165,8 +159,10 @@ public class DeudaService {
             ));
         }
 
-        double deudaPendiente = redondear(Math.max(0, totalPendiente - monto));
-        return new ResultadoAplicacion(redondear(monto - restante), deudaPendiente, detalles);
+        // Calculamos cuánto queda debiendo el inquilino en total tras este pago
+        double nuevaDeudaPendiente = redondear(Math.max(0, totalPendienteOriginal - (monto - restante)));
+        
+        return new ResultadoAplicacion(redondear(monto - restante), nuevaDeudaPendiente, detalles);
     }
 
     @Transactional(readOnly = true)
@@ -199,17 +195,59 @@ public class DeudaService {
         contrato.setDetalleAplicacion(formatearDetalle(resultado.detalles()));
     }
 
-    private void asegurarDeudaSiNoExiste(Unidad unidad, String periodo, TipoDeuda tipo, Double monto, String descripcion) {
-        if (monto == null || monto <= 0) {
+    private void asegurarDeudaMensualRodante(Unidad unidad, String periodo, TipoDeuda tipo, Double montoBase, String descripcionBase) {
+        double montoBaseNormalizado = redondear(valor(montoBase));
+
+        List<Deuda> deudasPreviasAbiertas = deudaRepository
+            .findByUnidadIdAndTipoAndEstadoInAndPeriodoLessThanOrderByPeriodoAscCreadaEnAsc(
+                unidad.getId(),
+                tipo,
+                ESTADOS_ABIERTOS,
+                periodo
+            );
+
+        double saldoArrastrado = redondear(deudasPreviasAbiertas.stream()
+            .mapToDouble(d -> valor(d.getMontoPendiente()))
+            .sum());
+
+        if (montoBaseNormalizado <= 0 && saldoArrastrado <= 0) {
             return;
         }
 
-        boolean existe = deudaRepository.findByUnidadIdAndPeriodoAndTipo(unidad.getId(), periodo, tipo).isPresent();
-        if (existe) {
+        Deuda deudaActual = deudaRepository.findByUnidadIdAndPeriodoAndTipo(unidad.getId(), periodo, tipo).orElse(null);
+        double montoOriginalDeseado = redondear(montoBaseNormalizado + saldoArrastrado);
+
+        if (deudaActual != null && saldoArrastrado <= 0) {
             return;
         }
 
-        Deuda deuda = new Deuda(unidad.getInquilino(), unidad, unidad.getEdificio(), tipo, periodo, redondear(monto), descripcion);
+        if (!deudasPreviasAbiertas.isEmpty()) {
+            deudasPreviasAbiertas.forEach(deuda -> {
+                deuda.setMontoPendiente(0.0);
+                deuda.setEstado(Deuda.EstadoDeuda.ARRASTRADA);
+                deudaRepository.save(deuda);
+            });
+        }
+
+        if (deudaActual != null) {
+            deudaActual.setMontoOriginal(montoOriginalDeseado);
+            deudaActual.setMontoPendiente(redondear(Math.max(0.0, montoOriginalDeseado - valor(deudaActual.getMontoPagado()))));
+            deudaActual.setEstado(deudaActual.getMontoPendiente() <= 0.00001
+                ? Deuda.EstadoDeuda.CANCELADA
+                : (valor(deudaActual.getMontoPagado()) > 0 ? Deuda.EstadoDeuda.PARCIAL : Deuda.EstadoDeuda.PENDIENTE));
+
+            if (deudaActual.getDescripcion() == null || deudaActual.getDescripcion().isBlank()) {
+                deudaActual.setDescripcion(descripcionBase);
+            }
+            deudaRepository.save(deudaActual);
+            return;
+        }
+
+        String descripcion = saldoArrastrado > 0
+            ? descripcionBase + " + saldo arrastrado"
+            : descripcionBase;
+
+        Deuda deuda = new Deuda(unidad.getInquilino(), unidad, unidad.getEdificio(), tipo, periodo, montoOriginalDeseado, descripcion);
         deudaRepository.save(deuda);
     }
 
@@ -240,25 +278,6 @@ public class DeudaService {
         double nuevo = redondear(Math.max(0.0, actual - valor(montoAplicado)));
         edificio.setGastosExtra(nuevo);
         edificioRepository.save(edificio);
-    }
-
-    private List<Double> calcularDistribucion(List<Unidad> unidades) {
-        List<Double> pesos = new ArrayList<>();
-        double suma = 0.0;
-
-        for (Unidad unidad : unidades) {
-            double peso = porcentajeNormalizado(unidad.getPorcentajeDepartamento());
-            pesos.add(peso);
-            suma += peso;
-        }
-
-        if (suma <= 0.00001) {
-            double igual = 1.0 / unidades.size();
-            return unidades.stream().map(u -> igual).toList();
-        }
-
-        double total = suma;
-        return pesos.stream().map(p -> p / total).toList();
     }
 
     private double porcentajeNormalizado(Double porcentajeRaw) {
