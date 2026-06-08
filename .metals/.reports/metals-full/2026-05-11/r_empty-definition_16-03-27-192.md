@@ -1,3 +1,14 @@
+error id: file://<WORKSPACE>/backend/src/main/java/com/gestion/tpbackend/controller/UsuarioController.java:_empty_/UsuarioService#verificarYActualizarEstado#
+file://<WORKSPACE>/backend/src/main/java/com/gestion/tpbackend/controller/UsuarioController.java
+empty definition using pc, found symbol in pc: _empty_/UsuarioService#verificarYActualizarEstado#
+empty definition using semanticdb
+empty definition using fallback
+non-local guesses:
+
+offset: 784
+uri: file://<WORKSPACE>/backend/src/main/java/com/gestion/tpbackend/controller/UsuarioController.java
+text:
+```scala
 package com.gestion.tpbackend.controller;
 
 import com.gestion.tpbackend.entity.Usuario;
@@ -24,7 +35,7 @@ public class UsuarioController {
     @GetMapping("/{id}")
     public Usuario obtener(@PathVariable Long id) {
         Usuario usuario = usuarioService.obtenerPorId(id);
-        return usuarioService.verificarYActualizarEstado(usuario);
+        return usuarioService.verifi@@carYActualizarEstado(usuario);
     }
 
     @PostMapping
@@ -44,3 +55,9 @@ public class UsuarioController {
         usuarioService.eliminar(id);
     }
 }
+```
+
+
+#### Short summary: 
+
+empty definition using pc, found symbol in pc: _empty_/UsuarioService#verificarYActualizarEstado#

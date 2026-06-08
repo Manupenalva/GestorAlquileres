@@ -168,4 +168,67 @@ public class EmailService {
         message.setText(text.toString());
         mailSender.send(message);
     }
+
+    public void enviarRecordatorio(String email, String nombre, Double deudaPendiente, Unidad unidad, String tiempoRestante) {
+        String subject = "Recordatorio de pago - Vence en " + tiempoRestante;
+        StringBuilder text = new StringBuilder();
+
+        text.append("Hola ").append(nombre).append(",\n\n");
+        text.append("Te recordamos que tu pago vence en ").append(tiempoRestante).append(".\n\n");
+        text.append("--- Detalle ---\n");
+        text.append("Edificio: ").append(unidad.getEdificio().getNombre()).append("\n");
+        text.append("Dirección: ").append(unidad.getEdificio().getDireccion()).append("\n");
+        text.append("Piso/Unidad: ").append(unidad.getPiso()).append("\n");
+        text.append("Monto pendiente: $").append(deudaPendiente).append("\n\n");
+        text.append("Podés abonar desde: ").append(frontendUrl).append("/mis-edificios\n");
+        text.append("\nPor favor, realizá el pago antes del vencimiento.");
+
+        enviar(email, subject, text.toString());
+    }
+
+    public void enviarRecordatorioUltimodia(String email, String nombre, Double deudaPendiente, Unidad unidad) {
+        String subject = "⚠️ Último día para pagar - Vence hoy";
+        StringBuilder text = new StringBuilder();
+
+        text.append("Hola ").append(nombre).append(",\n\n");
+        text.append("HOY es el último día para realizar tu pago del mes.\n\n");
+        text.append("--- Detalle ---\n");
+        text.append("Edificio: ").append(unidad.getEdificio().getNombre()).append("\n");
+        text.append("Dirección: ").append(unidad.getEdificio().getDireccion()).append("\n");
+        text.append("Piso/Unidad: ").append(unidad.getPiso()).append("\n");
+        text.append("Monto pendiente: $").append(deudaPendiente).append("\n\n");
+        text.append("Aboná ahora: ").append(frontendUrl).append("/mis-edificios\n");
+        text.append("\nEvitá inconvenientes realizando el pago hoy.");
+
+        enviar(email, subject, text.toString());
+    }
+
+    public void enviarAvisoAumentoAlquiler(String email, String nombre, Unidad unidad,
+                                           Double montoAnterior, Double montoAumento, Double montoNuevo,
+                                           Double porcentaje, String fechaEfecto, String adminNombre, Double deudaPendiente) {
+        String subject = "Aviso: Ajuste de tu alquiler - " + unidad.getEdificio().getNombre();
+        StringBuilder text = new StringBuilder();
+
+        text.append("Hola ").append(nombre).append(",\n\n");
+        text.append("Te informamos que el alquiler de tu unidad ")
+            .append(unidad.getNombre() != null ? unidad.getNombre() : "")
+            .append(" en el edificio \"")
+            .append(unidad.getEdificio().getNombre())
+            .append("\" fue actualizado.\n\n");
+
+        text.append("Resumen del ajuste:\n");
+        text.append("- Monto anterior: $").append(montoAnterior).append("\n");
+        text.append("- Aumento: $").append(montoAumento).append(" (").append(porcentaje).append("%)\n");
+        text.append("- Nuevo monto: $").append(montoNuevo).append("\n");
+        text.append("- Fecha de efecto: ").append(fechaEfecto).append("\n\n");
+
+        if (deudaPendiente != null) {
+            text.append("Saldo pendiente actual: $").append(deudaPendiente).append("\n\n");
+        }
+
+        text.append("Autorizado por: ").append(adminNombre).append("\n\n");
+        text.append("Si tenés dudas, respondé este correo o contactá al administrador.");
+
+        enviar(email, subject, text.toString());
+    }
 }

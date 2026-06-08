@@ -145,7 +145,6 @@ export function SignUp() {
                   className="border-input bg-input-background focus-visible:border-ring focus-visible:ring-ring/50 flex h-9 w-full rounded-md border px-3 text-sm outline-none focus-visible:ring-[3px]"
                 >
                   <option value="ADMIN">Administrador</option>
-                  <option value="PROP">Propietario</option>
                   <option value="INQ">Inquilino</option>
                 </select>
               </div>

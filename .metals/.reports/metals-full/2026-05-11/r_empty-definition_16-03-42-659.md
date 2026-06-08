@@ -1,3 +1,14 @@
+error id: file://<WORKSPACE>/backend/src/main/java/com/gestion/tpbackend/service/UsuarioService.java:java/lang/Long#
+file://<WORKSPACE>/backend/src/main/java/com/gestion/tpbackend/service/UsuarioService.java
+empty definition using pc, found symbol in pc: java/lang/Long#
+empty definition using semanticdb
+empty definition using fallback
+non-local guesses:
+
+offset: 1812
+uri: file://<WORKSPACE>/backend/src/main/java/com/gestion/tpbackend/service/UsuarioService.java
+text:
+```scala
 package com.gestion.tpbackend.service;
 import java.time.LocalDateTime;
 import com.gestion.tpbackend.entity.Usuario;
@@ -46,7 +57,7 @@ public class UsuarioService {
     return usuario;
     }
 
-    public Usuario obtenerPorId(Long id) {
+    public Usuario obtenerPorId(Lo@@ng id) {
         return usuarioRepository.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
     }
@@ -81,3 +92,10 @@ public class UsuarioService {
         usuarioRepository.delete(usuario);
     }
 }
+
+```
+
+
+#### Short summary: 
+
+empty definition using pc, found symbol in pc: java/lang/Long#

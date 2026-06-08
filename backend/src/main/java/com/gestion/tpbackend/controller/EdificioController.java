@@ -28,7 +28,14 @@ public class EdificioController {
     }
 
     @GetMapping
-    public List<Edificio> listar() {
+    public List<Edificio> listar(Authentication auth) {
+        boolean isAdmin = auth.getAuthorities().stream()
+            .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        
+        if (isAdmin) {
+            return edificioService.obtenerPorPropietario(auth.getName());
+        }
+        
         return edificioService.obtenerTodos();
     }
 

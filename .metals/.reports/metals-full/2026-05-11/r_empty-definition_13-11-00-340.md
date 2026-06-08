@@ -1,3 +1,14 @@
+error id: file://<WORKSPACE>/backend/src/main/java/com/gestion/tpbackend/service/ContratoService.java:DeudaService/AplicacionDetalle#
+file://<WORKSPACE>/backend/src/main/java/com/gestion/tpbackend/service/ContratoService.java
+empty definition using pc, found symbol in pc: DeudaService/AplicacionDetalle#
+empty definition using semanticdb
+empty definition using fallback
+non-local guesses:
+
+offset: 7996
+uri: file://<WORKSPACE>/backend/src/main/java/com/gestion/tpbackend/service/ContratoService.java
+text:
+```scala
 package com.gestion.tpbackend.service;
 
 import com.gestion.tpbackend.entity.Contrato;
@@ -57,46 +68,75 @@ public class ContratoService {
                 "No se encontró una unidad asignada a este inquilino en el edificio indicado"
             ));
 
-        // Aseguramos que existan las deudas del mes actual antes de aplicar el pago
         deudaService.asegurarDeudaBaseMensual(unidad, YearMonth.now());
 
-        // LÓGICA CORREGIDA: Definimos el estado basándonos en el método de pago
         EstadoPago estado = (metodo == MetodoPago.TARJETA) ? EstadoPago.PAGADO : EstadoPago.PENDIENTE;
-        
-        // Creamos el contrato asegurándonos de pasar el monto que viene por parámetro (los 125k)
         Contrato contrato = new Contrato(unidad, inquilino, monto, metodo, estado, nota);
 
         if (metodo == MetodoPago.TARJETA) {
-            // Aplicamos el pago al sistema de deudas
             DeudaService.ResultadoAplicacion resultado = deudaService.aplicarPago(inquilino.getId(), edificioId, monto);
-            
             contrato.setTipoAplicacion(resultado.deudaPendienteTotal() > 0 ? TipoAplicacion.PARCIAL : TipoAplicacion.TOTAL);
             contrato.setSaldoPendienteTotal(resultado.deudaPendienteTotal());
             contrato.setDetalleAplicacion(formatearDetalleAplicacion(resultado));
-            // Forzamos el estado PAGADO  que el Admin no vea "Pendiente" en pagos con tarjeta
-            contrato.setEstado(EstadoPago.PAGADO); 
         }
 
         Contrato contratoGuardado = contratoRepository.save(contrato);
 
         List<Map<String, Object>> detallesPago = new ArrayList<>();
         Instant ahora = Instant.now();
+        Double alquiler = unidad.getMontoAlquiler() != null ? unidad.getMontoAlquiler() : 0.0;
+        Double expensasBase = unidad.getEdificio().getExpensasBase() != null ? unidad.getEdificio().getExpensasBase() : 0.0;
+        Double gastosExtra = unidad.getEdificio().getGastosExtra() != null ? unidad.getEdificio().getGastosExtra() : 0.0;
 
-        detallesPago.add(Map.of(
-            "descripcion", "Pago de conceptos unificados (Alquiler, Expensas y Deuda)", 
-            "monto", monto, 
-            "fecha", ahora
-        ));
+        if (alquiler > 0) {
+            detallesPago.add(Map.of("descripcion", "Alquiler mensual", "monto", alquiler, "fecha", ahora));
+        }
+        if (expensasBase > 0) {
+            detallesPago.add(Map.of("descripcion", "Expensas Ordinarias", "monto", expensasBase, "fecha", ahora));
+        }
+        if (gastosExtra > 0) {
+            detallesPago.add(Map.of("descripcion", "Gastos Extraordinarios", "monto", gastosExtra, "fecha", ahora));
+        }
 
         Usuario propietarioEdificio = unidad.getEdificio().getPropietario();
 
         if (propietarioEdificio != null && propietarioEdificio.getEmail() != null) {
             if (metodo == MetodoPago.TARJETA) {
-                emailService.enviarConfirmacionPago(inquilino.getEmail(), inquilino.getNombre(), detallesPago, metodo, nota, unidad);
-                emailService.enviarAdminConfirmarPago(propietarioEdificio.getEmail(), propietarioEdificio.getNombre(), detallesPago, inquilino.getNombre(), metodo, nota, unidad);
+                emailService.enviarConfirmacionPago(
+                    inquilino.getEmail(),
+                    inquilino.getNombre(),
+                    detallesPago,
+                    metodo,
+                    nota,
+                    unidad
+                );
+                emailService.enviarAdminConfirmarPago(
+                    propietarioEdificio.getEmail(),
+                    propietarioEdificio.getNombre(),
+                    detallesPago,
+                    inquilino.getNombre(),
+                    metodo,
+                    nota,
+                    unidad
+                );
             } else if (metodo == MetodoPago.EFECTIVO) {
-                emailService.enviarPagoEfectivo(inquilino.getEmail(), inquilino.getNombre(), detallesPago, metodo, nota, unidad);
-                emailService.enviarAdminPagoEfectivo(propietarioEdificio.getEmail(), propietarioEdificio.getNombre(), detallesPago, inquilino.getNombre(), metodo, nota, unidad);
+                emailService.enviarPagoEfectivo(
+                    inquilino.getEmail(),
+                    inquilino.getNombre(),
+                    detallesPago,
+                    metodo,
+                    nota,
+                    unidad
+                );
+                emailService.enviarAdminPagoEfectivo(
+                    propietarioEdificio.getEmail(),
+                    propietarioEdificio.getNombre(),
+                    detallesPago,
+                    inquilino.getNombre(),
+                    metodo,
+                    nota,
+                    unidad
+                );
             }
         }
 
@@ -132,15 +172,17 @@ public class ContratoService {
             if (montoOverride <= 0) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El monto debe ser mayor a 0");
             }
+            if (montoOverride - contrato.getMonto() > 0.00001) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El monto no puede superar el pago original");
+            }
             contrato.setMonto(montoOverride);
         }
 
         deudaService.aplicarPagoPendiente(contrato);
-        contrato.setEstado(EstadoPago.PAGADO); 
         Contrato contratoActualizado = contratoRepository.save(contrato);
 
         List<Map<String, Object>> detallesPago = List.of(
-            Map.of("descripcion", "Pago confirmado por administrador", "monto", contrato.getMonto(), "fecha", Instant.now())
+            Map.of("descripcion", "Pago de expensas/alquiler", "monto", contrato.getMonto(), "fecha", Instant.now())
         );
 
         Usuario inquilino = contrato.getInquilino();
@@ -155,7 +197,7 @@ public class ContratoService {
         }
 
         StringBuilder builder = new StringBuilder();
-        for (DeudaService.AplicacionDetalle detalle : resultado.detalles()) {
+        for (DeudaService.AplicacionDet@@alle detalle : resultado.detalles()) {
             if (builder.length() > 0) {
                 builder.append(" | ");
             }
@@ -168,3 +210,9 @@ public class ContratoService {
         return builder.toString();
     }
 }
+```
+
+
+#### Short summary: 
+
+empty definition using pc, found symbol in pc: DeudaService/AplicacionDetalle#
