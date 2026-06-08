@@ -1,6 +1,17 @@
 # GestorAlquileres
 Aplicación para gestionar alquileres en bloque de manera simplificada.
 
+### Trabajo Realizado por:
+
+- Facundo Madotta
+- Fabricio Batastini
+- Manuel Peñalva
+- Mateo Nowenstein
+- Juana Rehl
+- Federico Garaventa
+
+---
+
 ## Arquitectura propuesta (Frontend + Backend + Docker)
 
 El proyecto queda dividido en dos servicios:
